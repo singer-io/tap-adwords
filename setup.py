@@ -10,8 +10,10 @@ setup(name='tap-adwords',
       classifiers=['Programming Language :: Python :: 3 :: Only'],
       py_modules=['tap_adwords'],
       install_requires=[
-            'singer-python>=0.3.1',
-            'requests==2.13.0',
+          'singer-python>=0.3.1',
+          'requests==2.13.0',
+          'googleads==5.3.0',
+          'suds-jurko>=0.6'
       ],
       entry_points='''
           [console_scripts]
