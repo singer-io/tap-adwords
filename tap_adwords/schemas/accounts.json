@@ -1,0 +1,51 @@
+{
+  "inclusion": "available",
+  "properties": {
+    "name": {
+      "inclusion": "available",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "canManageClients": {
+      "inclusion": "available",      
+      "type": [
+        "null",
+        "integer"
+      ]
+    },
+    "customerId": {
+      "inclusion": "always",
+      "type": [
+        "null",
+        "integer"
+      ]
+    },
+    "testAccount": {
+      "inclusion": "available",
+      "type": [
+        "null",
+        "integer"
+      ]
+    },
+    "dateTimeZone": {
+      "inclusion": "available",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "currencyCode": {
+      "inclusion": "available",
+      "type": [
+        "null",
+        "string"
+      ]
+    }
+  },
+  "type": [
+    "null",
+    "object"
+  ]
+}

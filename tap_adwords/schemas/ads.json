@@ -1,0 +1,855 @@
+{
+  "inclusion": "available",
+  "type": [
+    "null",
+    "object"
+  ],
+  "properties": {
+    "approvalStatus": {
+      "inclusion": "available",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "ad": {
+      "inclusion": "available",
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "url": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "marketingImage": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "object"
+          ],
+          "properties": {
+            "inclusion": "available",
+            "type": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "mimeType": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sourceUrl": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "fileSize": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "Media.Type": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "dimensions": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "object"
+                ],
+                "properties": {
+                  "key": {
+                    "inclusion": "available",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "value": {
+                    "inclusion": "available",
+                    "type": [
+                      "null",
+                      "object"
+                    ],
+                    "properties": {
+                      "width": {
+                        "inclusion": "available",
+                        "type": [
+                          "null",
+                          "integer"
+                        ]
+                      },
+                      "height": {
+                        "inclusion": "available",
+                        "type": [
+                          "null",
+                          "integer"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "referenceId": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "mediaId": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "urls": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "object"
+                ],
+                "properties": {
+                  "key": {
+                    "inclusion": "available",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "value": {
+                    "inclusion": "available",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  }
+                }
+              }
+            },
+            "name": {
+              "inclusion": "available",
+              "type": [
+                "null"
+              ]
+            }
+          }
+        },
+        "id": {
+          "inclusion": "always",
+          "type": [
+            "null",
+            "integer"
+          ]
+        },
+        "displayUrl": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "inclusion": "available",
+        "type": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "description2": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "logoImage": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "object"
+          ],
+          "properties": {
+            "inclusion": "available",
+            "type": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "mimeType": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "sourceUrl": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "fileSize": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "Media.Type": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "dimensions": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "object"
+                ],
+                "properties": {
+                  "key": {
+                    "inclusion": "available",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "value": {
+                    "inclusion": "available",
+                    "type": [
+                      "null",
+                      "object"
+                    ],
+                    "properties": {
+                      "width": {
+                        "inclusion": "available",
+                        "type": [
+                          "null",
+                          "integer"
+                        ]
+                      },
+                      "height": {
+                        "inclusion": "available",
+                        "type": [
+                          "null",
+                          "integer"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "referenceId": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "mediaId": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "urls": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "object"
+                ],
+                "properties": {
+                  "key": {
+                    "inclusion": "available",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "value": {
+                    "inclusion": "available",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  }
+                }
+              }
+            },
+            "name": {
+              "inclusion": "available",
+              "type": [
+                "null"
+              ]
+            }
+          }
+        },
+        "headline": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "description1": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "Ad.Type": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "name": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "originAdId": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "integer"
+          ]
+        },
+        "image": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "object"
+          ],
+          "properties": {
+            "inclusion": "available",
+            "type": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "Media.Type": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "fileSize": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "referenceId": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "dimensions": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "object"
+                ],
+                "properties": {
+                  "key": {
+                    "inclusion": "available",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "value": {
+                    "inclusion": "available",
+                    "type": [
+                      "null",
+                      "object"
+                    ],
+                    "properties": {
+                      "width": {
+                        "inclusion": "available",
+                        "type": [
+                          "null",
+                          "integer"
+                        ]
+                      },
+                      "height": {
+                        "inclusion": "available",
+                        "type": [
+                          "null",
+                          "integer"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "urls": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "object"
+                ],
+                "properties": {
+                  "key": {
+                    "inclusion": "available",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "value": {
+                    "inclusion": "available",
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  }
+                }
+              }
+            },
+            "mimeType": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          }
+        },
+        "templateId": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "integer"
+          ]
+        },
+        "templateElements": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "inclusion": "available",
+            "type": [
+              "null",
+              "object"
+            ],
+            "properties": {
+              "fields": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "array"
+                ],
+                "items": {
+                  "inclusion": "available",
+                  "type": [
+                    "null",
+                    "object"
+                  ],
+                  "properties": {
+                    "inclusion": "available",
+                    "type": {
+                      "inclusion": "available",
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "name": {
+                      "inclusion": "available",
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "fieldText": {
+                      "inclusion": "available",
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "fieldMedia": {
+                      "inclusion": "available",
+                      "type": [
+                        "null",
+                        "object"
+                      ],
+                      "properties": {
+                        "inclusion": "available",
+                        "type": {
+                          "inclusion": "available",
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "mimeType": {
+                          "inclusion": "available",
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "sourceUrl": {
+                          "inclusion": "available",
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "dimensions": {
+                          "inclusion": "available",
+                          "type": [
+                            "null",
+                            "array"
+                          ],
+                          "items": {
+                            "inclusion": "available",
+                            "type": [
+                              "null",
+                              "object"
+                            ],
+                            "properties": {
+                              "key": {
+                                "inclusion": "available",
+                                "type": [
+                                  "null",
+                                  "string"
+                                ]
+                              },
+                              "value": {
+                                "inclusion": "available",
+                                "type": [
+                                  "null",
+                                  "object"
+                                ],
+                                "properties": {
+                                  "width": {
+                                    "inclusion": "available",
+                                    "type": [
+                                      "null",
+                                      "integer"
+                                    ]
+                                  },
+                                  "height": {
+                                    "inclusion": "available",
+                                    "type": [
+                                      "null",
+                                      "integer"
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "referenceId": {
+                          "inclusion": "available",
+                          "type": [
+                            "null",
+                            "integer"
+                          ]
+                        },
+                        "mediaId": {
+                          "inclusion": "available",
+                          "type": [
+                            "null",
+                            "integer"
+                          ]
+                        },
+                        "urls": {
+                          "inclusion": "available",
+                          "type": [
+                            "null",
+                            "array"
+                          ],
+                          "items": {
+                            "inclusion": "available",
+                            "type": [
+                              "null",
+                              "object"
+                            ],
+                            "properties": {
+                              "key": {
+                                "inclusion": "available",
+                                "type": [
+                                  "null",
+                                  "string"
+                                ]
+                              },
+                              "value": {
+                                "inclusion": "available",
+                                "type": [
+                                  "null",
+                                  "string"
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "Media.Type": {
+                          "inclusion": "available",
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "uniqueName": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "status": {
+      "inclusion": "available",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "trademarks": {
+      "inclusion": "available",
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "inclusion": "available",
+        "type": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "baseAdGroupId": {
+      "inclusion": "available",
+      "type": [
+        "null",
+        "integer"
+      ]
+    },
+    "disapprovalReasons": {
+      "inclusion": "available",
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "inclusion": "available",
+        "type": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "policySummary": {
+      "inclusion": "available",
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "reviewState": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "denormalizedStatus": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "policyTopicEntries": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "inclusion": "available",
+            "type": [
+              "null",
+              "object"
+            ],
+            "properties": {
+              "policyTopicName": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "policyTopicEvidences": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "array"
+                ],
+                "items": {
+                  "inclusion": "available",
+                  "type": [
+                    "null",
+                    "object"
+                  ],
+                  "properties": {
+                    "policyTopicEvidenceType": {
+                      "inclusion": "available",
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "evidenceText": {
+                      "inclusion": "available",
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              },
+              "policyTopicEntryType": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "policyTopicId": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            }
+          }
+        },
+        "combinedApprovalStatus": {
+          "inclusion": "available",
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      }
+    },
+    "baseCampaignId": {
+      "inclusion": "available",
+      "type": [
+        "null",
+        "integer"
+      ]
+    },
+    "adGroupId": {
+      "inclusion": "always",
+      "type": [
+        "null",
+        "integer"
+      ]
+    },
+    "trademarkDisapproved": {
+      "inclusion": "available",      
+      "type": [
+        "null",
+        "integer"
+      ]
+    }
+  }
+}
