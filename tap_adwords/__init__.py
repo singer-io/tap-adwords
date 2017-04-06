@@ -135,19 +135,14 @@ def sync_campaigns(client):
         # Display results.
         if 'entries' in page:
             for campaign in page['entries']:
-                print("{}".format(Client.dict(campaign)))
-
 
                 singer.write_record(stream_name, suds_to_dict(campaign))
-                print ('Campaign found with Id \'%s\', name \'%s\''
-                       % (campaign['id'], campaign['name']))
             else:
-                print ('No campaigns were found.')
 
                 offset += PAGE_SIZE
                 selector['paging']['startIndex'] = str(offset)
                 more_pages = offset < int(page['totalNumEntries'])
-                time.sleep(1)
+            time.sleep(1)
 
 def report_definition_service(client, report_type):
     report_definition_service = client.GetService(
@@ -206,24 +201,15 @@ def create_xsd_type_map(typ):
         return XSD_TYPE_MAPPINGS.get(typ)
     return {"type": "string"}
 
+def load_schema(stream):
+    path = get_abs_path('schemas/{}.json'.format(stream))
+    return utils.load_json(path)
 
-def do_discover_campaigns(client, schema):
-    url = 'https://adwords.google.com/api/adwords/cm/v201702/CampaignService?wsdl'
-    top_res = request_xsd(url)
-    root = ET.fromstring(top_res)
-    paths = root.find(".//*[@name='Campaign']/{http://www.w3.org/2001/XMLSchema}sequence")
-    campaign_schema = {}
-    names = []
-    for p in paths:
-        names.append(p.attrib['name'])
-        campaign_schema[p.attrib['name']] = {'inclusion': xsd_inclusion_decision(p, CAMPAIGNS_PKS)}
-        campaign_schema[p.attrib['name']].update(create_xsd_type_map(p.attrib['type']))
+def do_discover_campaigns(schema):
+    campaign_schema = load_schema('campaigns')
+    schema['streams']["campaigns"] = campaign_schema
+    return schema
 
-    schema['streams'].update({"campaigns": {"type":"object",
-                                            "properties": campaign_schema}})
-
-    print("names are: {}".format(names))
-    print(schema)
 
 def do_discover_ad_groups(client, schema):
     url = 'https://adwords.google.com/api/adwords/cm/v201702/AdGroupService?wsdl'
@@ -260,7 +246,7 @@ def main():
     schema = {'streams': {}}
     if args.discover:
         #schema = do_discover_reports(adwords_client, schema)
-        schema = do_discover_campaigns(adwords_client, schema)
+        schema = do_discover_campaigns(schema)
         # schema = do_discover_ad_groups(adwords_client, schema)
         # schema = do_discover_ad_group_ads(adwords_client, schema)
         # schema = do_discover_accounts(adwords_client, schema)
