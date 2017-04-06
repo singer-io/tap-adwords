@@ -4,6 +4,7 @@ import datetime
 import os
 import sys
 
+import json
 import xml.etree.ElementTree as ET
 from suds.client import Client
 import time
@@ -21,76 +22,19 @@ LOGGER = singer.get_logger()
 SESSION = requests.Session()
 PAGE_SIZE = 100
 VERSION = 'v201702'
-CAMPAIGNS_FIELD_LIST = ["AdvertisingChannelSubType"
-                                      "AdvertisingChannelType"
-                                      "Amount"
-                                      "BaseCampaignId"
-                                      "BidCeiling"
-                                      "BidType"
-                                      "BiddingStrategyId"
-                                      "BiddingStrategyName"
-                                      "BiddingStrategyType"
-                                      "BudgetId"
-                                      "BudgetName"
-                                      "BudgetReferenceCount"
-                                      "BudgetStatus"
-                                      "CampaignTrialType"
-                                      "DeliveryMethod"
-                                      "Eligible"
-                                      "EndDate"
-                                      "EnhancedCpcEnabled"
-                                      "FrequencyCapMaxImpressions"
-                                      "Id"
-                                      "IsBudgetExplicitlyShared"
-                                      "Labels"
-                                      "Level"
-                                      "Name"
-                                      "PricingMode"
-                                      "RejectionReasons"
-                                      "ServingStatus"
-                                      "Settings"
-                                      "StartDate"
-                                      "Status"
-                                      "TargetContentNetwork"
-                                      "TargetCpa"
-                                      "TargetCpaMaxCpcBidCeiling"
-                                      "TargetCpaMaxCpcBidFloor"
-                                      "TargetGoogleSearch"
-                                      "TargetPartnerSearchNetwork"
-                                      "TargetRoas"
-                                      "TargetRoasBidCeiling"
-                                      "TargetRoasBidFloor"
-                                      "TargetSearchNetwork"
-                                      "TargetSpendBidCeiling"
-                                      "TargetSpendSpendTarget"
-                                      "TimeUnit"
-                                      "TrackingUrlTemplate"
-                                      "UrlCustomParameters"
-                                      "VanityPharmaDisplayUrlMode"
-                                      "VanityPharmaText"]
+REPORTING_REQUIRED_FIELDS = frozenset(["adGroupID", "campaignID", "account", "adID", "keywordID", "customerId", "date"])
+TYPE_MAPPINGS = {"Boolean" : {"type": "boolean"},
+                 "boolean" : {'type': "boolean"},
+                 "Date" : {"type": "string",
+                           "format": "date-time"},
+                 "DateTime" : {"type": "string",
+                               "format": "date-time"},
+                 "Double" : {"type": "number"},
+                 "int" : {"type": "integer"},
+                 "Integer": {"type": "integer"},
+                 "long": {"type": "integer"},
+                 "Long": {"type": "integer"}}
 
-BASE_REQUEST_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-  <soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">
-  <soapenv:Header>
-    <ns1:RequestHeader soapenv:actor=\"http://schemas.xmlsoap.org/soap/actor/next\" soapenv:mustUnderstand=\"0\" xmlns:ns1=\"https://adwords.google.com/api/adwords/cm/v201607\">
-      <clientCustomerId>{customer-id}</clientCustomerId>
-      <developerToken>{developer-token}</developerToken>
-      <userAgent>RJMetricsAdWordsIntegration</userAgent>
-      <validateOnly>false</validateOnly>
-      <partialFailure>false</partialFailure>
-    </ns1:RequestHeader>
-  </soapenv:Header>
-  <soapenv:Body>
-        <get xmlns=\"https://adwords.google.com/api/adwords/cm/v201607\">
-            <serviceSelector>
-                {fields}
-                {predicates}
-                {ordering}
-                <paging><startIndex>{start-index}</startIndex><numberResults>{num-results}</numberResults></paging>
-            </serviceSelector>
-        </get>
-    </soapenv:Body>
-</soapenv:Envelope>"""
 
 REQUIRED_CONFIG_KEYS = [
     "start_date",
@@ -100,9 +44,9 @@ REQUIRED_CONFIG_KEYS = [
     "developer_token"
 ]
 
-BASE_URL = "https://adwords.google.com/api/adwords/cm/v201607/"
-ACCOUNTS_BASE_URL = "https://adwords.google.com/api/adwords/mcm/v201607/"
-REFRESH_TOKEN_URL = "https://www.googleapis.com/oauth2/v4/token"
+# BASE_URL = "https://adwords.google.com/api/adwords/cm/v201607/"
+# ACCOUNTS_BASE_URL = "https://adwords.google.com/api/adwords/mcm/v201607/"
+# REFRESH_TOKEN_URL = "https://www.googleapis.com/oauth2/v4/token"
 CONFIG = {}
 STATE = {}
 
@@ -130,14 +74,6 @@ def request_xsd():
     resp = SESSION.send(req)
 
     return resp.text
-
-# def refresh_access_token():
-#         refresh_token=CONFIG['refresh_token']
-#         refresh_req = request(url=REFRESH_TOKEN_URL,data={'grant_type': "refresh_token", 'refresh_token': refresh_token})
-#         refresh_resp = SESSION.send(refresh_req)
-#         refresh_json = refresh_resp.json()
-#         CONFIG['access_token'] = refresh_json['access_token']
-        
 
 #TODO split on commas
 def sync_campaigns(client):
@@ -171,17 +107,17 @@ def sync_campaigns(client):
             for campaign in page['entries']:
                 print("{}".format(Client.dict(campaign)))
 
-                
+
                 singer.write_record(stream_name, Client.dict(campaign))
                 print ('Campaign found with Id \'%s\', name \'%s\', and labels: %s'
                        % (campaign['id'], campaign['name'], campaign['labels']))
             else:
                 print ('No campaigns were found.')
-                
+
                 offset += PAGE_SIZE
                 selector['paging']['startIndex'] = str(offset)
                 more_pages = offset < int(page['totalNumEntries'])
-                time.sleep(1)                                 
+                time.sleep(1)
 
 def report_definition_service(client, report_type):
     report_definition_service = client.GetService(
@@ -189,42 +125,49 @@ def report_definition_service(client, report_type):
     fields = report_definition_service.getReportFields(report_type)
     return fields
 
-REPORTING_REQUIRED_FIELDS = frozenset(["adGroupID", "campaignID", "account", "adID", "keywordID", "customerId", "date"])
-
 def inclusion_decision(field):
     name = field['xmlAttributeName']
     if name in REPORTING_REQUIRED_FIELDS:
         return 'always'
     return 'available'
 
-def do_sync(client):
+def create_type_map(typ):
+    if TYPE_MAPPINGS.get(typ):
+        return TYPE_MAPPINGS.get(typ)
+    return {'type' : 'string'}
+
+def do_discover(client):
     top_res = request_xsd()
     root = ET.fromstring(top_res)
     path = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
     for p in path:
         print(p.attrib['value'])
-    report_names = [p.attrib['value'] for p in path]
-    print(report_names)
-    #print("{}".format(path))
-    # fields = report_definition_service(client, "ADGROUP_PERFORMANCE_REPORT")
-    # schema = {}
-    # for field in fields:
-    #     schema[field['xmlAttributeName']] = {'description': field['displayFieldName'],
-    #                                          'type': field['fieldType'],
-    #                                          'behavior': field['fieldBehavior'],
-    #                                          'inclusion': inclusion_decision(field)}
-
-    # final_schema = {"type": "object",
-    #                 "properties": schema}
-    # print("{}".format(final_schema))
+    streams = [p.attrib['value'] for p in path]
+    streams.remove("UNKNOWN")
+    result = {'streams': {}}
+    for stream in streams:
+        LOGGER.info('Loading schmea for %s', stream)
+        fields = report_definition_service(client, stream)
+        schema = {}
+        for field in fields:
+            schema[field['xmlAttributeName']] = {'description': field['displayFieldName'],
+                                                 'behavior': field['fieldBehavior'],
+                                                 'inclusion': inclusion_decision(field)}
+            schema[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
         
-    #sync_campaigns(client)
-    LOGGER.info("Sync complete")
+        final_schema = {"type": "object",
+                        "properties": schema}
+        result['streams'][stream] = final_schema
+
+    json.dump(result, sys.stdout, indent=4)
+
+    LOGGER.info("Discover complete")
 
 def main():
-    config, state = utils.parse_args(REQUIRED_CONFIG_KEYS)
-    CONFIG.update(config)
-    STATE.update(state)
+    args = utils.parse_args(REQUIRED_CONFIG_KEYS)
+
+    CONFIG.update(args.config)
+    STATE.update(args.state)
 
     # Initialize the GoogleRefreshTokenClient using the credentials you received
     # in the earlier steps.
@@ -237,7 +180,9 @@ def main():
     print("AdWordsClient args: {} | {} | {} | {}".format(CONFIG['developer_token'], oauth2_client, CONFIG['user_agent'], CONFIG['customer_ids']))
     adwords_client = adwords.AdWordsClient(CONFIG['developer_token'], oauth2_client, user_agent=CONFIG['user_agent'], client_customer_id=CONFIG["customer_ids"])
 
-    do_sync(adwords_client)
+    if args.discover:
+        do_discover(adwords_client)
+
 
 
 if __name__ == "__main__":
