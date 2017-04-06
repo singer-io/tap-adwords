@@ -23,7 +23,7 @@ SESSION = requests.Session()
 PAGE_SIZE = 100
 VERSION = 'v201702'
 REPORTING_REQUIRED_FIELDS = frozenset(["adGroupID", "campaignID", "account", "adID", "keywordID", "customerId", "date"])
-TYPE_MAPPINGS = {"Boolean" : {"type": "boolean"},
+REPORT_TYPE_MAPPINGS = {"Boolean" : {"type": "boolean"},
                  "boolean" : {'type': "boolean"},
                  "Date" : {"type": "string",
                            "format": "date-time"},
@@ -35,6 +35,11 @@ TYPE_MAPPINGS = {"Boolean" : {"type": "boolean"},
                  "long": {"type": "integer"},
                  "Long": {"type": "integer"}}
 
+XSD_TYPE_MAPPINGS = {"xsd:long" : {"type" : "integer"}}
+CAMPAIGNS_PKS = frozenset(['id'])
+ADGROUPS_PKS = frozenset(['id'])
+ADGROUP_ADS_PKS = frozenset(['id', 'adGroupId'])
+ACCOUNTS_PKS = frozenset(['customerId'])
 
 REQUIRED_CONFIG_KEYS = [
     "start_date",
@@ -67,22 +72,47 @@ def get_url(endpoint):
     return BASE_URL.format(CONFIG['account_name']) + endpoint
 
 @utils.ratelimit(100, 15) # TODO
-def request_xsd():
-    url = 'https://adwords.google.com/api/adwords/reportdownload/v201702/reportDefinition.xsd'
+def request_xsd(url):
     req = requests.Request("GET", url=url).prepare()
     LOGGER.info("GET {}".format(req.url))
     resp = SESSION.send(req)
 
     return resp.text
 
+def suds_to_dict(obj):
+    if not hasattr(obj, '__keylist__'):
+        return obj
+    data = {}
+    fields = obj.__keylist__
+    for field in fields:
+        val = getattr(obj, field)
+        if isinstance(val, list):
+            data[field] = []
+            for item in val:
+                data[field].append(suds_to_dict(item))
+        else:
+            data[field] = suds_to_dict(val)
+    return data
+
 #TODO split on commas
 def sync_campaigns(client):
     stream_name = 'campaigns'
     campaign_service = client.GetService('CampaignService', version=VERSION)
 
+    # field_list = ["Id", "Name", ]
+    field_list = ['id', 'name', 'status', 'servingStatus', 'startDate',
+                  'endDate',
+                  'eligible', 'TimeUnit', 'TargetGoogleSearch', 'VanityPharmaDisplayUrlMode', 'BudgetId', # trouble
+                  'adServingOptimizationStatus', 'settings',
+                  'advertisingChannelType', 'advertisingChannelSubType',
+                  'labels',
+                  'campaignTrialType', 'baseCampaignId',
+                  'trackingUrlTemplate', 'urlCustomParameters',
+                  'selectiveOptimization']
+    field_list = [f[0].upper()+f[1:] for f in field_list]
     offset = 0
     selector = {
-        'fields': ['Id', 'Name'],
+        'fields': field_list,
         'ordering': {
             'field': 'Name',
             'sortOrder': 'ASCENDING'
@@ -108,9 +138,9 @@ def sync_campaigns(client):
                 print("{}".format(Client.dict(campaign)))
 
 
-                singer.write_record(stream_name, Client.dict(campaign))
-                print ('Campaign found with Id \'%s\', name \'%s\', and labels: %s'
-                       % (campaign['id'], campaign['name'], campaign['labels']))
+                singer.write_record(stream_name, suds_to_dict(campaign))
+                print ('Campaign found with Id \'%s\', name \'%s\''
+                       % (campaign['id'], campaign['name']))
             else:
                 print ('No campaigns were found.')
 
@@ -132,12 +162,13 @@ def inclusion_decision(field):
     return 'available'
 
 def create_type_map(typ):
-    if TYPE_MAPPINGS.get(typ):
-        return TYPE_MAPPINGS.get(typ)
+    if REPORT_TYPE_MAPPINGS.get(typ):
+        return REPORT_TYPE_MAPPINGS.get(typ)
     return {'type' : 'string'}
 
-def do_discover(client):
-    top_res = request_xsd()
+def do_discover_reports(client, schema):
+    url = 'https://adwords.google.com/api/adwords/reportdownload/v201702/reportDefinition.xsd'
+    top_res = request_xsd(url)
     root = ET.fromstring(top_res)
     path = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
     for p in path:
@@ -148,20 +179,66 @@ def do_discover(client):
     for stream in streams:
         LOGGER.info('Loading schmea for %s', stream)
         fields = report_definition_service(client, stream)
-        schema = {}
         for field in fields:
             schema[field['xmlAttributeName']] = {'description': field['displayFieldName'],
                                                  'behavior': field['fieldBehavior'],
+                                                 'field': field['fieldName'],
                                                  'inclusion': inclusion_decision(field)}
             schema[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
-        
+
         final_schema = {"type": "object",
                         "properties": schema}
         result['streams'][stream] = final_schema
 
-    json.dump(result, sys.stdout, indent=4)
+
 
     LOGGER.info("Discover complete")
+    return result
+
+def xsd_inclusion_decision(field, checking_set):
+    name = field.attrib['name']
+    if name in checking_set:
+        return 'always'
+    return 'available'
+
+def create_xsd_type_map(typ):
+    if XSD_TYPE_MAPPINGS.get(typ):
+        return XSD_TYPE_MAPPINGS.get(typ)
+    return {"type": "string"}
+
+
+def do_discover_campaigns(client, schema):
+    url = 'https://adwords.google.com/api/adwords/cm/v201702/CampaignService?wsdl'
+    top_res = request_xsd(url)
+    root = ET.fromstring(top_res)
+    paths = root.find(".//*[@name='Campaign']/{http://www.w3.org/2001/XMLSchema}sequence")
+    campaign_schema = {}
+    names = []
+    for p in paths:
+        names.append(p.attrib['name'])
+        campaign_schema[p.attrib['name']] = {'inclusion': xsd_inclusion_decision(p, CAMPAIGNS_PKS)}
+        campaign_schema[p.attrib['name']].update(create_xsd_type_map(p.attrib['type']))
+
+    schema['streams'].update({"campaigns": {"type":"object",
+                                            "properties": campaign_schema}})
+
+    print("names are: {}".format(names))
+    print(schema)
+
+def do_discover_ad_groups(client, schema):
+    url = 'https://adwords.google.com/api/adwords/cm/v201702/AdGroupService?wsdl'
+    top_res = request_xsd(url)
+    root = ET.fromstring(top_res)
+    paths = root.find(".//*[@name='AdGroup']/{http://www.w3.org/2001/XMLSchema}sequence")
+    adgroup_schema = {}
+    for p in paths:
+        adgroup_schema[p.attrib['name']] = {'inclusion': xsd_inclusion_decision(p, ADGROUPS_PKS)}
+        adgroup_schema[p.attrib['name']].update(create_xsd_type_map(p.attrib['type']))
+
+    schema['streams'].update({"ad_groups": {"type":"object",
+                                            "properties": adgroup_schema}})
+
+    print(schema)
 
 def main():
     args = utils.parse_args(REQUIRED_CONFIG_KEYS)
@@ -180,10 +257,16 @@ def main():
     print("AdWordsClient args: {} | {} | {} | {}".format(CONFIG['developer_token'], oauth2_client, CONFIG['user_agent'], CONFIG['customer_ids']))
     adwords_client = adwords.AdWordsClient(CONFIG['developer_token'], oauth2_client, user_agent=CONFIG['user_agent'], client_customer_id=CONFIG["customer_ids"])
 
+    schema = {'streams': {}}
     if args.discover:
-        do_discover(adwords_client)
-
-
+        #schema = do_discover_reports(adwords_client, schema)
+        schema = do_discover_campaigns(adwords_client, schema)
+        # schema = do_discover_ad_groups(adwords_client, schema)
+        # schema = do_discover_ad_group_ads(adwords_client, schema)
+        # schema = do_discover_accounts(adwords_client, schema)
+        json.dump(schema, sys.stdout, indent=4)
+    else:
+        sync_campaigns(adwords_client)
 
 if __name__ == "__main__":
     main()
