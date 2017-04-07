@@ -16,6 +16,7 @@ import requests
 import singer
 
 from singer import utils
+from singer import transform
 
 SDK_CLIENT = None
 LOGGER = singer.get_logger()
@@ -130,7 +131,7 @@ def sync_generic_endpoint(stream_name, stream_schema):
         if 'entries' in page:
             for entry in page['entries']:
 
-                singer.write_record(stream_name, suds_to_dict(entry))
+                singer.write_record(stream_name, transform.transform(suds_to_dict(entry), schema))
             else:
 
                 offset += PAGE_SIZE

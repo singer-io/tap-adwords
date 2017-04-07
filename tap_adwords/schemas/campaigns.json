@@ -16,7 +16,8 @@
       "type": [
         "null",
         "string"
-      ]
+      ],
+      "format": "date-time"
     },
     "settings": {
       "items": {
@@ -74,7 +75,8 @@
       "type": [
         "null",
         "string"
-      ]
+      ],
+      "format": "date-time"
     },
     "budget": {
       "inclusion": "available",
