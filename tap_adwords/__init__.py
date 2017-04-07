@@ -108,6 +108,7 @@ def sync_generic_endpoint(stream_name, stream_schema):
     primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream_name]['primary_keys']
     singer.write_schema(stream_name, schema, primary_keys)
 
+    LOGGER.info("Syncing %s", stream_name)
     service_caller = SDK_CLIENT.GetService(service_name, version=VERSION)
 
     field_list = primary_keys + fields(stream_schema)
