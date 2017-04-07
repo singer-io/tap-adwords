@@ -17,7 +17,7 @@ import singer
 
 from singer import utils
 
-
+SDK_CLIENT = None
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
 PAGE_SIZE = 100
@@ -39,10 +39,15 @@ REPORT_TYPE_MAPPINGS = {"Boolean" : {"type": "boolean"},
 #TODO find all xsd types
 XSD_TYPE_MAPPINGS = {"xsd:long" : {"type" : "integer"},
                      "xsd:boolean" : {"type" : "boolean"}}
-CAMPAIGNS_PKS = frozenset(['id'])
-ADGROUPS_PKS = frozenset(['id'])
-ADGROUP_ADS_PKS = frozenset(['id', 'adGroupId'])
-ACCOUNTS_PKS = frozenset(['customerId'])
+
+GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
+                                           'service_name': 'CampaignService'},
+                             "ad_groups": {'primary_keys': ["id"],
+                                           'service_name': 'AdGroupService'},
+                             "ads": {'primary_keys': ["id", "adGroupId"],
+                                     'service_name': 'AdGroupAdService'},
+                             "accounts": {'primary_keys': ["customerId"],
+                                          'service_name': 'ManagedCustomerService'}}
 
 REQUIRED_CONFIG_KEYS = [
     "start_date",
@@ -69,6 +74,10 @@ def get_start(key):
 def get_url(endpoint):
     return BASE_URL.format(CONFIG['account_name']) + endpoint
 
+def fields(annotated_schema):
+    props = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
+    return set([k for k in props if props[k].get('selected')])
+
 @utils.ratelimit(100, 15) # TODO
 def request_xsd(url):
     req = requests.Request("GET", url=url).prepare()
@@ -93,9 +102,15 @@ def suds_to_dict(obj):
     return data
 
 #TODO split on commas
-def sync_generic_endpoints(client, stream_name, service_name, field_list):
-    service_caller = client.GetService(service_name, version=VERSION)
+def sync_generic_endpoint(stream_name, annotated_schema):
+    schema = load_schema(stream_name)
+    service_name = GENERIC_ENDPOINT_MAPPINGS[stream_name]['service_name']
+    primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream_name]['primary_keys']
+    singer.write_schema(stream_name, schema, [stream_name], primary_keys)
 
+    service_caller = SDK_CLIENT.GetService(service_name, version=VERSION)
+
+    field_list = fields(annotated_schema[stream_name])
     field_list = [f[0].upper()+f[1:] for f in field_list]
     offset = 0
     selector = {
@@ -121,8 +136,20 @@ def sync_generic_endpoints(client, stream_name, service_name, field_list):
                 selector['paging']['startIndex'] = str(offset)
                 more_pages = offset < int(page['totalNumEntries'])
 
-def report_definition_service(client, report_type):
-    report_definition_service = client.GetService(
+
+def sync_stream(stream, annotated_schema):
+    if stream in GENERIC_ENDPOINTS:
+        sync_generic_endpoint(stream, annotated_schema)
+#TODO reports sync
+
+def do_sync(annotated_schema):
+    for stream in annotated_schema['streams']:
+        if stream.get('selected'):
+            sync_stream(stream, annotated_schema)
+    LOGGER.info("Sync Completed")
+
+def report_definition_service(report_type):
+    report_definition_service = SDK_CLIENT.GetService(
         'ReportDefinitionService', version=VERSION)
     fields = report_definition_service.getReportFields(report_type)
     return fields
@@ -138,49 +165,37 @@ def create_type_map(typ):
         return REPORT_TYPE_MAPPINGS.get(typ)
     return {'type' : 'string'}
 
-def do_discover_reports(client, schema):
+def do_discover_reports():
     url = 'https://adwords.google.com/api/adwords/reportdownload/v201702/reportDefinition.xsd'
     top_res = request_xsd(url)
     root = ET.fromstring(top_res)
     path = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
     streams = [p.attrib['value'] for p in path]
     streams.remove("UNKNOWN")
-    result = {'streams': {}}
+    schema = {}
     for stream in streams:
-        LOGGER.info('Loading schmea for %s', stream)
-        fields = report_definition_service(client, stream)
+        report_properties = {}
+        LOGGER.info('Loading schema for %s', stream)
+        fields = report_definition_service(stream)
         for field in fields:
-            schema[field['xmlAttributeName']] = {'description': field['displayFieldName'],
-                                                 'behavior': field['fieldBehavior'],
-                                                 'field': field['fieldName'],
-                                                 'inclusion': inclusion_decision(field)}
-            schema[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
+            report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName'],
+                                                                'behavior': field['fieldBehavior'],
+                                                                'field': field['fieldName'],
+                                                                'inclusion': inclusion_decision(field)}
+            report_properties[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
 
-        final_schema = {"type": "object",
-                        "properties": schema}
-        result['streams'][stream] = final_schema
+        schema[stream] = {"type": "object",
+                          "properties": report_properties}
 
     LOGGER.info("Report discovery complete")
-    return result
+    return schema
 
-def xsd_inclusion_decision(field, checking_set):
-    name = field.attrib['name']
-    if name in checking_set:
-        return 'always'
-    return 'available'
+def do_discover_generic_endpoints():
+    schema = {}
+    for stream_name in GENERIC_ENDPOINTS:
+        stream_schema = load_schema(stream_name)
+        schema.update({stream_name: stream_schema})
 
-def create_xsd_type_map(typ):
-    if XSD_TYPE_MAPPINGS.get(typ):
-        return XSD_TYPE_MAPPINGS.get(typ)
-    return {"type": "string"}
-
-def load_schema(stream):
-    path = get_abs_path('schemas/{}.json'.format(stream))
-    return utils.load_json(path)
-
-def do_discover_generic_endpoints(schema, stream_name):
-    stream_schema = load_schema(stream_name)
-    schema['streams'].update({stream_name: stream_schema})
     return schema
 
 def main():
@@ -193,22 +208,22 @@ def main():
         CONFIG['oauth_client_id'], \
         CONFIG['oauth_client_secret'], \
         CONFIG['refresh_token'])
-
-    adwords_client = adwords.AdWordsClient(CONFIG['developer_token'], \
+    global SDK_CLIENT
+    SDK_CLIENT = adwords.AdWordsClient(CONFIG['developer_token'], \
                                            oauth2_client, user_agent=CONFIG['user_agent'], \
                                            client_customer_id=CONFIG["customer_ids"])
 
-    schema = {'streams': {}}
     if args.discover:
-        for endpoint in GENERIC_ENDPOINTS:
-            do_discover_generic_endpoints(schema,endpoint)
-        schema = do_discover_reports(adwords_client, schema)
-        json.dump(schema, sys.stdout, indent=4)
+        generic_schema = do_discover_generic_endpoints()
+        report_schema = do_discover_reports()
+        schema = {}
+        schema.update(generic_schema)
+        schema.update(report_schema)
+        json.dump({"streams": schema}, sys.stdout, indent=4)
+    elif args.properties:
+        do_sync(args.properties)
     else:
-        #sync_generic_endpoints(adwords_client,'campaigns', 'CampaignService', CAMPAIGNS_FULL_FIELD_LIST)
-        #sync_generic_endpoints(adwords_client,'ad_groups', 'AdGroupService', ADGROUP_FULL_FIELD_LIST)
-        #sync_generic_endpoints(adwords_client,'ads', 'AdGroupAdService', ADGROUPAD_FULL_FIELD_LIST)
-        sync_generic_endpoints(adwords_client,'accounts', 'ManagedCustomerService', ACCOUNTS_FULL_FIELD_LIST)
+        LOGGER.info("No properties were selected")
 
 if __name__ == "__main__":
     main()
