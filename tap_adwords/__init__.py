@@ -102,15 +102,15 @@ def suds_to_dict(obj):
     return data
 
 #TODO split on commas
-def sync_generic_endpoint(stream_name, annotated_schema):
+def sync_generic_endpoint(stream_name, stream_schema):
     schema = load_schema(stream_name)
     service_name = GENERIC_ENDPOINT_MAPPINGS[stream_name]['service_name']
     primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream_name]['primary_keys']
-    singer.write_schema(stream_name, schema, [stream_name], primary_keys)
+    singer.write_schema(stream_name, schema, primary_keys)
 
     service_caller = SDK_CLIENT.GetService(service_name, version=VERSION)
 
-    field_list = fields(annotated_schema[stream_name])
+    field_list = fields(stream_schema)
     field_list = [f[0].upper()+f[1:] for f in field_list]
     offset = 0
     selector = {
@@ -143,9 +143,9 @@ def sync_stream(stream, annotated_schema):
 #TODO reports sync
 
 def do_sync(annotated_schema):
-    for stream in annotated_schema['streams']:
-        if stream.get('selected'):
-            sync_stream(stream, annotated_schema)
+    for stream_name, stream_schema in annotated_schema['streams'].items():
+        if stream_schema.get('selected'):
+            sync_stream(stream_name, stream_schema)
     LOGGER.info("Sync Completed")
 
 def report_definition_service(report_type):
