@@ -76,7 +76,7 @@ def get_url(endpoint):
 
 def fields(annotated_schema):
     props = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
-    return set([k for k in props if props[k].get('selected')])
+    return [k for k in props if props[k].get('selected')]
 
 @utils.ratelimit(100, 15) # TODO
 def request_xsd(url):
@@ -110,7 +110,7 @@ def sync_generic_endpoint(stream_name, stream_schema):
 
     service_caller = SDK_CLIENT.GetService(service_name, version=VERSION)
 
-    field_list = fields(stream_schema)
+    field_list = primary_keys + fields(stream_schema)
     field_list = [f[0].upper()+f[1:] for f in field_list]
     offset = 0
     selector = {
