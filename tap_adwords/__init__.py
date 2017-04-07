@@ -3,6 +3,8 @@
 import datetime
 import os
 import sys
+import io
+import csv
 
 import json
 import xml.etree.ElementTree as ET
@@ -87,6 +89,44 @@ def request_xsd(url):
 
     return resp.text
 
+def sync_report(stream_name, annotated_stream_schema):
+    stream_schema = create_schema_for_report(stream_name)
+    report_downloader = SDK_CLIENT.GetReportDownloader(version=VERSION)
+    primary_keys = 'FIXME'
+    xml_attribute_list  = fields(stream_schema)
+    field_name_list = []
+    for field in xml_attribute_list:
+        real_field_list.append(schema[field]['field'])
+
+    # Create report definition.
+    #TODO add dateRange
+    report = {
+        'reportName': 'Seems this is required',
+        'dateRangeType': 'CUSTOM_DATE',
+        'reportType': stream_name,
+        'downloadFormat': 'CSV',
+        'selector': {
+            'fields': ['BaseCampaignId', 'AverageCpm'],
+            'dateRange': {'min': '20170101',
+                          'max': '20170102'}
+        }
+    }
+
+    # Print out the report as a string
+    result = report_downloader.DownloadReportAsString(
+        report, skip_report_header=True, skip_column_header=False,
+        skip_report_summary=True, include_zero_impressions=True)
+
+    #TODO human readable names are the headers
+    print(result)
+
+
+    string_buffer = io.StringIO(result)
+    reader = csv.reader(string_buffer)
+    for row in reader:
+        print('\t'.join(row))
+
+
 def suds_to_dict(obj):
     if not hasattr(obj, '__keylist__'):
         return obj
@@ -142,7 +182,8 @@ def sync_generic_endpoint(stream_name, stream_schema):
 def sync_stream(stream, annotated_schema):
     if stream in GENERIC_ENDPOINTS:
         sync_generic_endpoint(stream, annotated_schema)
-#TODO reports sync
+    else:
+        sync_report(stream, annotated_schema)
 
 def do_sync(annotated_schema):
     for stream_name, stream_schema in annotated_schema['streams'].items():
@@ -167,6 +208,20 @@ def create_type_map(typ):
         return REPORT_TYPE_MAPPINGS.get(typ)
     return {'type' : 'string'}
 
+def create_schema_for_report(stream):
+    report_properties = {}
+    LOGGER.info('Loading schema for %s', stream)
+    fields = report_definition_service(stream)
+    for field in fields:
+        report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName'],
+                                                        'behavior': field['fieldBehavior'],
+                                                        'field': field['fieldName'],
+                                                        'inclusion': inclusion_decision(field)}
+        report_properties[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
+
+    return {"type": "object",
+            "properties": report_properties}
+
 def do_discover_reports():
     url = 'https://adwords.google.com/api/adwords/reportdownload/v201702/reportDefinition.xsd'
     top_res = request_xsd(url)
@@ -176,18 +231,9 @@ def do_discover_reports():
     streams.remove("UNKNOWN")
     schema = {}
     for stream in streams:
-        report_properties = {}
-        LOGGER.info('Loading schema for %s', stream)
-        fields = report_definition_service(stream)
-        for field in fields:
-            report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName'],
-                                                                'behavior': field['fieldBehavior'],
-                                                                'field': field['fieldName'],
-                                                                'inclusion': inclusion_decision(field)}
-            report_properties[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
+        stream_schema = create_schema_for_report(stream)
 
-        schema[stream] = {"type": "object",
-                          "properties": report_properties}
+        schema[stream] = stream_schema
 
     LOGGER.info("Report discovery complete")
     return schema
