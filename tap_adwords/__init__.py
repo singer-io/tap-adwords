@@ -193,10 +193,20 @@ def do_discover_reports():
 def do_discover_generic_endpoints():
     schema = {}
     for stream_name in GENERIC_ENDPOINTS:
+        LOGGER.info('Loading schema for %s', stream_name)
         stream_schema = load_schema(stream_name)
         schema.update({stream_name: stream_schema})
 
     return schema
+
+def do_discover():
+    generic_schema = do_discover_generic_endpoints()
+    report_schema = do_discover_reports()
+    schema = {}
+    schema.update(generic_schema)
+    schema.update(report_schema)
+    json.dump({"streams": schema}, sys.stdout, indent=4)
+    LOGGER.info("Discovery complete")
 
 def main():
     args = utils.parse_args(REQUIRED_CONFIG_KEYS)
@@ -208,18 +218,14 @@ def main():
         CONFIG['oauth_client_id'], \
         CONFIG['oauth_client_secret'], \
         CONFIG['refresh_token'])
+
     global SDK_CLIENT
     SDK_CLIENT = adwords.AdWordsClient(CONFIG['developer_token'], \
-                                           oauth2_client, user_agent=CONFIG['user_agent'], \
-                                           client_customer_id=CONFIG["customer_ids"])
+                                       oauth2_client, user_agent=CONFIG['user_agent'], \
+                                       client_customer_id=CONFIG["customer_ids"])
 
     if args.discover:
-        generic_schema = do_discover_generic_endpoints()
-        report_schema = do_discover_reports()
-        schema = {}
-        schema.update(generic_schema)
-        schema.update(report_schema)
-        json.dump({"streams": schema}, sys.stdout, indent=4)
+        do_discover()
     elif args.properties:
         do_sync(args.properties)
     else:
