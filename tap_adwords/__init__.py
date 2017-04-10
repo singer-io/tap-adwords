@@ -123,8 +123,21 @@ def sync_report(stream_name, annotated_stream_schema):
 
     string_buffer = io.StringIO(result)
     reader = csv.reader(string_buffer)
+    rows = []
     for row in reader:
-        print('\t'.join(row))
+        rows.append(row)
+
+    headers = rows[0]
+    values = rows[1:]
+    print(headers)
+    description_to_xml_attribute = {}
+    for k,v in stream_schema['properties'].items():
+        description_to_xml_attribute[v['description']] = k
+
+    xml_attribute_headers = [description_to_xml_attribute[header] for header in headers]
+    for val in values:
+        obj = dict(zip(xml_attribute_headers, val))
+        singer.write_record(stream_name,obj)
 
 
 def suds_to_dict(obj):
