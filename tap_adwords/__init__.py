@@ -137,7 +137,7 @@ def sync_report(stream_name, annotated_stream_schema):
     xml_attribute_headers = [description_to_xml_attribute[header] for header in headers]
     for val in values:
         obj = dict(zip(xml_attribute_headers, val))
-        singer.write_record(stream_name,obj)
+        singer.write_record(stream_name,transform.transform(obj, stream_schema))
 
 
 def suds_to_dict(obj):
