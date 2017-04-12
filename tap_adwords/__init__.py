@@ -25,7 +25,7 @@ LOGGER = singer.get_logger()
 SESSION = requests.Session()
 PAGE_SIZE = 100
 VERSION = 'v201702'
-REPORTING_REQUIRED_FIELDS = frozenset(["adGroupID", "campaignID", "keywordID", "account", "adID", "customerId", "date"])
+REPORTING_REQUIRED_FIELDS = frozenset(["adGroupID", "campaignID", "keywordID", "account", "adID", "customerId", "day"])
 
 STATE = {}
 
@@ -100,25 +100,23 @@ def request_xsd(url):
 def sync_report(stream_name, annotated_stream_schema, sdk_client):
     stream_schema = create_schema_for_report(stream_name, sdk_client)
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
-    primary_keys = 'FIXME'
+    primary_keys = ['adGroupID', 'campaignID', 'keywordID', 'customer_id'] # 'FIXME'
     xml_attribute_list  = fields(stream_schema)
     real_field_list = []
-
+    seen_pk_values = set([])
     singer.write_schema(stream_name, stream_schema, [])
     
     for field in xml_attribute_list:
         if field != 'customer_id':
             real_field_list.append(stream_schema['properties'][field]['field'])
 
-    
     start_date = pendulum.parse(get_start(state_key_name(sdk_client.client_customer_id, stream_name)))
-    until = start_date.add(days=1)
-    while until <= pendulum.now():
-        sync_report_for_day(stream_name, stream_schema, report_downloader, sdk_client.client_customer_id, start_date, until, real_field_list)
+    while start_date <= pendulum.now():
+        sync_report_for_day(stream_name, stream_schema, report_downloader, sdk_client.client_customer_id, start_date, real_field_list, primary_keys, seen_pk_values)
         start_date = start_date.add(days=1)
-        until = until.add(days=1)
 
-def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_id, start, until, field_list):
+def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_id, start, real_field_list, primary_keys, seen_pk_values):
+
     # Create report definition.
     report = {
         'reportName': 'Seems this is required',
@@ -126,15 +124,15 @@ def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_
         'reportType': stream_name,
         'downloadFormat': 'CSV',
         'selector': {
-            'fields': field_list,
+            'fields': real_field_list,
             'dateRange': {'min': start.strftime('%Y%m%d'),
-                          'max': until.strftime('%Y%m%d')}}}
+                          'max': start.strftime('%Y%m%d')}}}
 
     # Print out the report as a string
     # Do not get data with 0 impressions, some reports don't support that
     result = report_downloader.DownloadReportAsString(
         report, skip_report_header=True, skip_column_header=False,
-        skip_report_summary=True, include_zero_impressions=False)
+        skip_report_summary=True, include_zero_impressions=True)
 
     string_buffer = io.StringIO(result)
     reader = csv.reader(string_buffer)
@@ -153,12 +151,19 @@ def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_
     for val in values:
         obj = dict(zip(xml_attribute_headers, val))
         obj['customer_id'] = customer_id
-        singer.write_record(stream_name, transform.transform(obj, stream_schema))
+        obj = transform.transform(obj, stream_schema)
+        print("ojbect is {}".format(obj))
+        tup = tuple([obj.get(pk) for pk in primary_keys])
+        if tup in seen_pk_values:
+            raise Exception("Duplicate PK value found for pk values {}".format(dict(zip(primary_keys, tup))))
+        seen_pk_values.add(tup)
+        print("about to write record")
+        singer.write_record(stream_name, obj)
         
-    utils.update_state(STATE, state_key_name(customer_id, stream_name), until)
+    utils.update_state(STATE, state_key_name(customer_id, stream_name), start)
     singer.write_state(STATE)
     
-    LOGGER.info("Done syncing for customer id {} report {} for date range {} to {}".format(customer_id, stream_name, start, until))
+    LOGGER.info("Done syncing for customer id {} report {} for date range {} to {}".format(customer_id, stream_name, start, start))
 
 def suds_to_dict(obj):
     if not hasattr(obj, '__keylist__'):
