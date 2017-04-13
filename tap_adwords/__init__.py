@@ -26,7 +26,7 @@ LOGGER = singer.get_logger()
 SESSION = requests.Session()
 PAGE_SIZE = 100
 VERSION = 'v201702'
-REPORTING_REQUIRED_FIELDS = frozenset(["day"])
+REPORTING_REQUIRED_FIELDS = frozenset(["day", 'account', 'adID', 'adGroupID', 'keywordID'])
 
 STATE = {}
 
@@ -109,7 +109,7 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
     xml_attribute_list  = fields(stream_schema, annotated_stream_schema)
     primary_keys = [pk for pk in xml_attribute_list if pk in REPORT_KEYWORD_MAPPINGS[stream_name]]
-    primary_keys += get_report_segment_fields(annotated_stream_schema) + ['customer_id']
+    primary_keys += get_report_segment_fields(annotated_stream_schema) + ['customer_id', 'day']
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
 
     real_field_list = []
