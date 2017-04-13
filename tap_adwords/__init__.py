@@ -20,6 +20,7 @@ import singer
 
 from singer import utils
 from singer import transform
+from tap_adwords.report_keyword_mappings import REPORT_KEYWORD_MAPPINGS
 
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
@@ -100,11 +101,12 @@ def request_xsd(url):
 def sync_report(stream_name, annotated_stream_schema, sdk_client):
     stream_schema = create_schema_for_report(stream_name, sdk_client)
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
-    primary_keys = ['adGroupID', 'campaignID', 'keywordID', 'customer_id'] # 'FIXME'
+    #primary_keys = ['campaignID', 'adID', 'adGroupID', 'customerID', 'keywordID', 'account', 'day'] # 'FIXME'
+    primary_keys = list(REPORT_KEYWORD_MAPPINGS[stream_name])
     xml_attribute_list  = fields(stream_schema)
     real_field_list = []
     seen_pk_values = set([])
-    singer.write_schema(stream_name, stream_schema, [])
+    singer.write_schema(stream_name, stream_schema, primary_keys)
     
     for field in xml_attribute_list:
         if field != 'customer_id':
@@ -132,7 +134,7 @@ def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_
     # Do not get data with 0 impressions, some reports don't support that
     result = report_downloader.DownloadReportAsString(
         report, skip_report_header=True, skip_column_header=False,
-        skip_report_summary=True, include_zero_impressions=True)
+        skip_report_summary=True, include_zero_impressions=False)
 
     string_buffer = io.StringIO(result)
     reader = csv.reader(string_buffer)
