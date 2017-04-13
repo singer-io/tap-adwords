@@ -26,7 +26,7 @@ LOGGER = singer.get_logger()
 SESSION = requests.Session()
 PAGE_SIZE = 100
 VERSION = 'v201702'
-REPORTING_REQUIRED_FIELDS = frozenset(["adGroupID", "campaignID", "keywordID", "account", "adID", "customerId", "day"])
+REPORTING_REQUIRED_FIELDS = frozenset(["day"])
 
 STATE = {}
 
@@ -80,15 +80,21 @@ def get_start(key):
 
     return STATE[key]
 
-def get_url(endpoint):
-    return BASE_URL.format(CONFIG['account_name']) + endpoint
-
 def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
 
-def fields(annotated_schema):
+def fields(stream_schema, annotated_schema):
     props = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
-    return [k for k in props if props[k].get('selected') or props[k].get('inclusion') == 'always']
+    return [k for k in props if props[k].get('selected') or stream_schema['properties'][k].get('inclusion') == 'always']
+
+def get_report_segment_fields(annotated_schema):
+    primary_keys = []
+
+    for property_key, property_value in annotated_schema['properties'].items():
+        if property_value['behavior'] == 'SEGMENT' and property_value.get('selected'):
+            primary_keys.append(property_key)
+
+    return primary_keys
 
 @utils.ratelimit(100, 15) # TODO
 def request_xsd(url):
@@ -101,9 +107,11 @@ def request_xsd(url):
 def sync_report(stream_name, annotated_stream_schema, sdk_client):
     stream_schema = create_schema_for_report(stream_name, sdk_client)
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
-    #primary_keys = ['campaignID', 'adID', 'adGroupID', 'customerID', 'keywordID', 'account', 'day'] # 'FIXME'
-    primary_keys = list(REPORT_KEYWORD_MAPPINGS[stream_name])
-    xml_attribute_list  = fields(stream_schema)
+    xml_attribute_list  = fields(stream_schema, annotated_stream_schema)
+    primary_keys = [pk for pk in xml_attribute_list if pk in REPORT_KEYWORD_MAPPINGS[stream_name]]
+    primary_keys += get_report_segment_fields(annotated_stream_schema) + ['customer_id']
+    LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
+
     real_field_list = []
     seen_pk_values = set([])
     singer.write_schema(stream_name, stream_schema, primary_keys)
@@ -118,7 +126,7 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
         start_date = start_date.add(days=1)
 
 def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_id, start, real_field_list, primary_keys, seen_pk_values):
-
+    LOGGER.info("field list for report is {}".format(real_field_list))
     # Create report definition.
     report = {
         'reportName': 'Seems this is required',
@@ -148,7 +156,7 @@ def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_
     description_to_xml_attribute = {}
     for k,v in stream_schema['properties'].items():
         description_to_xml_attribute[v['description']] = k
-
+#
     xml_attribute_headers = [description_to_xml_attribute[header] for header in headers]
     for val in values:
         obj = dict(zip(xml_attribute_headers, val))
@@ -183,16 +191,16 @@ def suds_to_dict(obj):
     return data
 
 #TODO split on commas
-def sync_generic_endpoint(stream_name, stream_schema, sdk_client):
-    schema = load_schema(stream_name)
+def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
+    discovered_schema = load_schema(stream_name)
     service_name = GENERIC_ENDPOINT_MAPPINGS[stream_name]['service_name']
     primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream_name]['primary_keys']
-    singer.write_schema(stream_name, schema, primary_keys)
+    singer.write_schema(stream_name, discovered_schema, primary_keys)
 
     LOGGER.info("Syncing %s", stream_name)
     service_caller = sdk_client.GetService(service_name, version=VERSION)
 
-    field_list = fields(stream_schema)
+    field_list = fields(discovered_schema, annotated_stream_schema)
     field_list = [f[0].upper()+f[1:] for f in field_list]
     offset = 0
     selector = {
@@ -211,7 +219,7 @@ def sync_generic_endpoint(stream_name, stream_schema, sdk_client):
         if 'entries' in page:
             for entry in page['entries']:
 
-                singer.write_record(stream_name, transform.transform(suds_to_dict(entry), schema))
+                singer.write_record(stream_name, transform.transform(suds_to_dict(entry), discovered_schema))
             else:
 
                 offset += PAGE_SIZE
@@ -242,6 +250,11 @@ def inclusion_decision(field):
         return 'always'
     return 'available'
 
+def report_inclusion_decision(stream):
+    if REPORT_KEYWORD_MAPPINGS.get(stream):
+        return "available"
+    return "unsupported"
+
 def create_type_map(typ):
     if REPORT_TYPE_MAPPINGS.get(typ):
         return REPORT_TYPE_MAPPINGS.get(typ)
@@ -263,7 +276,8 @@ def create_schema_for_report(stream, sdk_client):
                                         'field': "customer_id",
                                         'inclusion': 'always'}
     return {"type": "object",
-            "properties": report_properties}
+            "properties": report_properties,
+            "inclusion": report_inclusion_decision(stream)}
 
 def do_discover_reports(sdk_client):
     url = 'https://adwords.google.com/api/adwords/reportdownload/v201702/reportDefinition.xsd'
