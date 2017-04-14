@@ -20,22 +20,13 @@ setup(name='tap-adwords',
           tap-adwords=tap_adwords:main
       ''',
       packages=['tap_adwords'],
-      # package_data = {
-      #     'tap_adwords/schemas': [
-      #         "clients.json",
-      #         "contacts.json",
-      #         "expense_categories.json",
-      #         "expenses.json",
-      #         "invoice_item_categories.json",
-      #         "invoice_payments.json"
-      #         "invoices.json",
-      #         "people.json",
-      #         "project_tasks.json",
-      #         "project_users.json",
-      #         "projects.json",
-      #         "tasks.json",
-      #         "time_entries.json",
-      #     ],
-      # },
-      # include_package_data=True,
+      package_data = {
+          'tap_adwords/schemas': [
+              "accounts.json",
+              "ad_groups.json",
+              "ads.json",
+              "campaigns.json",
+          ],
+      },
+      include_package_data=True,
 )
