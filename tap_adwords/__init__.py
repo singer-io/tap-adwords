@@ -25,35 +25,27 @@ LOGGER = singer.get_logger()
 SESSION = requests.Session()
 PAGE_SIZE = 100
 VERSION = 'v201702'
-REPORTING_REQUIRED_FIELDS = frozenset(["day", 'account', 'adID', 'adGroupID', 'keywordID'])
 
-STATE = {}
-
-GENERIC_ENDPOINTS = ['campaigns', 'accounts', 'ad_groups', 'ads']
-REPORT_TYPE_MAPPINGS = {"Boolean" : {"type": "boolean"},
-                        "boolean" : {'type': "boolean"},
-                        "Date" : {"type": "string",
-                                  "format": "date-time"},
-                        "DateTime" : {"type": "string",
-                                      "format": "date-time"},
-                        "Double" : {"type": "number"},
-                        "int" : {"type": "integer"},
-                        "Integer": {"type": "integer"},
-                        "long": {"type": "integer"},
-                        "Long": {"type": "integer"}}
-
-#TODO find all xsd types
-XSD_TYPE_MAPPINGS = {"xsd:long" : {"type" : "integer"},
-                     "xsd:boolean" : {"type" : "boolean"}}
+REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": "boolean"},
+                        "boolean":  {'type': "boolean"},
+                        "Double":   {"type": "number"},
+                        "int":      {"type": "integer"},
+                        "Integer":  {"type": "integer"},
+                        "long":     {"type": "integer"},
+                        "Long":     {"type": "integer"},
+                        "Date":     {"type": "string",
+                                     "format": "date-time"},
+                        "DateTime": {"type": "string",
+                                     "format": "date-time"}}
 
 GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
                                            'service_name': 'CampaignService'},
                              "ad_groups": {'primary_keys': ["id"],
                                            'service_name': 'AdGroupService'},
-                             "ads": {'primary_keys': ["id", "adGroupId"],
-                                     'service_name': 'AdGroupAdService'},
-                             "accounts": {'primary_keys': ["customerId"],
-                                          'service_name': 'ManagedCustomerService'}}
+                             "ads":       {'primary_keys': ["id", "adGroupId"],
+                                           'service_name': 'AdGroupAdService'},
+                             "accounts":  {'primary_keys': ["customerId"],
+                                           'service_name': 'ManagedCustomerService'}}
 
 REQUIRED_CONFIG_KEYS = [
     "start_date",
@@ -62,8 +54,9 @@ REQUIRED_CONFIG_KEYS = [
     "user_agent",
     "refresh_token",
     "customer_ids",
-    "developer_token"
+    "developer_token",
 ]
+
 CONFIG = {}
 STATE = {}
 
@@ -95,7 +88,8 @@ def get_report_segment_fields(annotated_schema):
 
     return primary_keys
 
-@utils.ratelimit(100, 15) # TODO
+# No rate limit here, since this request is only made once
+# per discovery (not sync) job
 def request_xsd(url):
     req = requests.Request("GET", url=url).prepare()
     LOGGER.info("GET {}".format(req.url))
@@ -189,7 +183,6 @@ def suds_to_dict(obj):
             data[field] = suds_to_dict(val)
     return data
 
-#TODO split on commas
 def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
     discovered_schema = load_schema(stream_name)
     service_name = GENERIC_ENDPOINT_MAPPINGS[stream_name]['service_name']
@@ -224,7 +217,7 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
         more_pages = offset < int(page['totalNumEntries'])
 
 def sync_stream(stream, annotated_schema, sdk_client):
-    if stream in GENERIC_ENDPOINTS:
+    if stream in GENERIC_ENDPOINT_MAPPINGS:
         sync_generic_endpoint(stream, annotated_schema, sdk_client)
     else:
         sync_report(stream, annotated_schema, sdk_client)
@@ -240,12 +233,6 @@ def get_report_definition_service(report_type, sdk_client):
     fields = report_definition_service.getReportFields(report_type)
     return fields
 
-def inclusion_decision(field):
-    name = field['xmlAttributeName']
-    if name in REPORTING_REQUIRED_FIELDS:
-        return 'always'
-    return 'available'
-
 def create_type_map(typ):
     if REPORT_TYPE_MAPPINGS.get(typ):
         return REPORT_TYPE_MAPPINGS.get(typ)
@@ -259,7 +246,7 @@ def create_schema_for_report(stream, sdk_client):
         report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName'],
                                                         'behavior': field['fieldBehavior'],
                                                         'field': field['fieldName'],
-                                                        'inclusion': inclusion_decision(field)}
+                                                        'inclusion': "available"}
         report_properties[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
     report_properties['customer_id'] = {'description': 'Profile ID',
                                         'behavior': 'ATTRIBUTE',
@@ -288,32 +275,36 @@ def do_discover_reports(sdk_client):
 
 def do_discover_generic_endpoints():
     schema = {}
-    for stream_name in GENERIC_ENDPOINTS:
+    for stream_name in GENERIC_ENDPOINT_MAPPINGS:
         LOGGER.info('Loading schema for %s', stream_name)
         stream_schema = load_schema(stream_name)
         schema.update({stream_name: stream_schema})
-
     return schema
 
-def do_discover(sdk_client):
+def do_discover(customer_ids):
+    sdk_client = create_sdk_client(customer_ids[0])
     generic_schema = do_discover_generic_endpoints()
     report_schema = do_discover_reports(sdk_client)
     schema = {}
     schema.update(generic_schema)
     schema.update(report_schema)
     json.dump({"streams": schema}, sys.stdout, indent=4)
-    LOGGER.info("Discovery complete")
 
-def create_client(customer_id):
+def create_sdk_client(customer_id):
     oauth2_client = oauth2.GoogleRefreshTokenClient(
         CONFIG['oauth_client_id'], \
         CONFIG['oauth_client_secret'], \
         CONFIG['refresh_token'])
 
-    client = adwords.AdWordsClient(CONFIG['developer_token'], \
+    sdk_client = adwords.AdWordsClient(CONFIG['developer_token'], \
                                  oauth2_client, user_agent=CONFIG['user_agent'], \
                                  client_customer_id=customer_id)
-    return client
+    return sdk_client
+
+def do_sync_all_customers(customer_ids, properties):
+    for customer_id in customer_ids:
+        sdk_client = create_sdk_client(customer_id)
+        do_sync(properties, sdk_client)
 
 def main():
     args = utils.parse_args(REQUIRED_CONFIG_KEYS)
@@ -322,19 +313,12 @@ def main():
     STATE.update(args.state)
     customer_ids = CONFIG['customer_ids'].split(",")
 
-    if args.state:
-        STATE.update(args.state)
-
     if args.discover:
-        client = create_client(customer_ids[0])
-        do_discover(client)
+        do_discover(customer_ids)
+        LOGGER.info("Discovery complete")
     elif args.properties:
-        for customer_id in customer_ids:
-            client = create_client(customer_id)
-            do_sync(args.properties, client)
-
+        do_sync_all_customers(customer_ids, args.properties)
         LOGGER.info("Sync Completed")
-
     else:
         LOGGER.info("No properties were selected")
 
