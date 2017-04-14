@@ -118,6 +118,24 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
         sync_report_for_day(stream_name, stream_schema, report_downloader, sdk_client.client_customer_id, start_date, real_field_list, primary_keys, seen_pk_values)
         start_date = start_date.add(days=1)
 
+def parse_csv_string(csv_string):
+    string_buffer = io.StringIO(csv_string)
+    reader = csv.reader(string_buffer)
+    rows = [row for row in reader]
+
+    headers = rows[0]
+    values = rows[1:]
+    return headers, values
+
+def get_xml_attribute_headers(stream_schema, description_headers):
+    description_to_xml_attribute = {}
+    for key, value in stream_schema['properties'].items():
+        description_to_xml_attribute[value['description']] = key
+
+    xml_attribute_headers = [description_to_xml_attribute[header] for header in description_headers]
+    return xml_attribute_headers
+
+
 def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_id, start, real_field_list, primary_keys, seen_pk_values):
     LOGGER.info("field list for report is {}".format(real_field_list))
     # Create report definition.
@@ -131,28 +149,16 @@ def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_
             'dateRange': {'min': start.strftime('%Y%m%d'),
                           'max': start.strftime('%Y%m%d')}}}
 
-    # Print out the report as a string
-    # Do not get data with 0 impressions, some reports don't support that
+    # Fetch the report as a csv string
+    # Do not get data with 0 impressions, because some reports don't support that
     result = report_downloader.DownloadReportAsString(
         report, skip_report_header=True, skip_column_header=False,
         skip_report_summary=True, include_zero_impressions=False)
 
-    string_buffer = io.StringIO(result)
-    reader = csv.reader(string_buffer)
-    rows = []
-    for row in reader:
-        rows.append(row)
+    headers, values = parse_csv_string(result)
 
-    headers = rows[0]
-    values = rows[1:]
-
-    description_to_xml_attribute = {}
-    for key, value in stream_schema['properties'].items():
-        description_to_xml_attribute[value['description']] = key
-
-    xml_attribute_headers = [description_to_xml_attribute[header] for header in headers]
     for val in values:
-        obj = dict(zip(xml_attribute_headers, val))
+        obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
         obj['customer_id'] = customer_id
         obj = transform.transform(obj, stream_schema)
         print("ojbect is {}".format(obj))
