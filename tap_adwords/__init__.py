@@ -5,11 +5,11 @@ import os
 import sys
 import io
 import csv
-
+import time
 import json
+
 import xml.etree.ElementTree as ET
 from suds.client import Client
-import time
 import pendulum
 import googleads
 from googleads import adwords
@@ -20,7 +20,6 @@ import singer
 
 from singer import utils
 from singer import transform
-from tap_adwords.report_keyword_mappings import REPORT_KEYWORD_MAPPINGS
 
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
@@ -83,7 +82,7 @@ def get_start(key):
 def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
 
-def fields(stream_schema, annotated_schema):
+def get_fields(stream_schema, annotated_schema):
     props = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
     return [k for k in props if props[k].get('selected') or stream_schema['properties'][k].get('inclusion') == 'always']
 
@@ -107,15 +106,15 @@ def request_xsd(url):
 def sync_report(stream_name, annotated_stream_schema, sdk_client):
     stream_schema = create_schema_for_report(stream_name, sdk_client)
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
-    xml_attribute_list  = fields(stream_schema, annotated_stream_schema)
-    primary_keys = [pk for pk in xml_attribute_list if pk in REPORT_KEYWORD_MAPPINGS[stream_name]]
+    xml_attribute_list = get_fields(stream_schema, annotated_stream_schema)
+    primary_keys = []
     primary_keys += get_report_segment_fields(annotated_stream_schema) + ['customer_id', 'day']
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
 
     real_field_list = []
     seen_pk_values = set([])
     singer.write_schema(stream_name, stream_schema, primary_keys)
-    
+
     for field in xml_attribute_list:
         if field != 'customer_id':
             real_field_list.append(stream_schema['properties'][field]['field'])
@@ -154,9 +153,9 @@ def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_
     values = rows[1:]
 
     description_to_xml_attribute = {}
-    for k,v in stream_schema['properties'].items():
-        description_to_xml_attribute[v['description']] = k
-#
+    for key, value in stream_schema['properties'].items():
+        description_to_xml_attribute[value['description']] = key
+
     xml_attribute_headers = [description_to_xml_attribute[header] for header in headers]
     for val in values:
         obj = dict(zip(xml_attribute_headers, val))
@@ -169,10 +168,10 @@ def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_
         seen_pk_values.add(tup)
         print("about to write record")
         singer.write_record(stream_name, obj)
-        
+
     utils.update_state(STATE, state_key_name(customer_id, stream_name), start)
     singer.write_state(STATE)
-    
+
     LOGGER.info("Done syncing for customer id {} report {} for date range {} to {}".format(customer_id, stream_name, start, start))
 
 def suds_to_dict(obj):
@@ -200,7 +199,7 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
     LOGGER.info("Syncing %s", stream_name)
     service_caller = sdk_client.GetService(service_name, version=VERSION)
 
-    field_list = fields(discovered_schema, annotated_stream_schema)
+    field_list = get_fields(discovered_schema, annotated_stream_schema)
     field_list = [f[0].upper()+f[1:] for f in field_list]
     offset = 0
     selector = {
@@ -220,12 +219,9 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
             for entry in page['entries']:
 
                 singer.write_record(stream_name, transform.transform(suds_to_dict(entry), discovered_schema))
-            else:
-
-                offset += PAGE_SIZE
-                selector['paging']['startIndex'] = str(offset)
-                more_pages = offset < int(page['totalNumEntries'])
-
+        offset += PAGE_SIZE
+        selector['paging']['startIndex'] = str(offset)
+        more_pages = offset < int(page['totalNumEntries'])
 
 def sync_stream(stream, annotated_schema, sdk_client):
     if stream in GENERIC_ENDPOINTS:
@@ -238,7 +234,7 @@ def do_sync(annotated_schema, sdk_client):
         if stream_schema.get('selected'):
             sync_stream(stream_name, stream_schema, sdk_client)
 
-def report_definition_service(report_type, sdk_client):
+def get_report_definition_service(report_type, sdk_client):
     report_definition_service = sdk_client.GetService(
         'ReportDefinitionService', version=VERSION)
     fields = report_definition_service.getReportFields(report_type)
@@ -250,11 +246,6 @@ def inclusion_decision(field):
         return 'always'
     return 'available'
 
-def report_inclusion_decision(stream):
-    if REPORT_KEYWORD_MAPPINGS.get(stream):
-        return "available"
-    return "unsupported"
-
 def create_type_map(typ):
     if REPORT_TYPE_MAPPINGS.get(typ):
         return REPORT_TYPE_MAPPINGS.get(typ)
@@ -263,7 +254,7 @@ def create_type_map(typ):
 def create_schema_for_report(stream, sdk_client):
     report_properties = {}
     LOGGER.info('Loading schema for %s', stream)
-    fields = report_definition_service(stream, sdk_client)
+    fields = get_report_definition_service(stream, sdk_client)
     for field in fields:
         report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName'],
                                                         'behavior': field['fieldBehavior'],
@@ -277,7 +268,7 @@ def create_schema_for_report(stream, sdk_client):
                                         'inclusion': 'always'}
     return {"type": "object",
             "properties": report_properties,
-            "inclusion": report_inclusion_decision(stream)}
+            "inclusion": "available"}
 
 def do_discover_reports(sdk_client):
     url = 'https://adwords.google.com/api/adwords/reportdownload/v201702/reportDefinition.xsd'
@@ -313,7 +304,7 @@ def do_discover(sdk_client):
     json.dump({"streams": schema}, sys.stdout, indent=4)
     LOGGER.info("Discovery complete")
 
-def create_client(customer_id):    
+def create_client(customer_id):
     oauth2_client = oauth2.GoogleRefreshTokenClient(
         CONFIG['oauth_client_id'], \
         CONFIG['oauth_client_secret'], \
@@ -333,7 +324,7 @@ def main():
 
     if args.state:
         STATE.update(args.state)
-    
+
     if args.discover:
         client = create_client(customer_ids[0])
         do_discover(client)
