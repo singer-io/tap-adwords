@@ -88,18 +88,9 @@ def get_start(key):
 def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
 
-def get_fields(stream_schema, annotated_schema):
+def get_fields_to_sync(stream_schema, annotated_schema):
     props = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
     return [k for k in props if props[k].get('selected') or stream_schema['properties'][k].get('inclusion') == 'always']
-
-def get_report_segment_fields(annotated_schema):
-    primary_keys = []
-
-    for property_key, property_value in annotated_schema['properties'].items():
-        if property_value['behavior'] == 'SEGMENT' and property_value.get('selected'):
-            primary_keys.append(property_key)
-
-    return primary_keys
 
 # No rate limit here, since this request is only made once
 # per discovery (not sync) job
@@ -111,24 +102,25 @@ def request_xsd(url):
     return resp.text
 
 def sync_report(stream_name, annotated_stream_schema, sdk_client):
-    stream_schema = create_schema_for_report(stream_name, sdk_client)
+    customer_id = sdk_client.client_customer_id
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
-    xml_attribute_list = get_fields(stream_schema, annotated_stream_schema)
+
+    stream_schema = create_schema_for_report(stream_name, sdk_client)
+    xml_attribute_list = get_fields_to_sync(stream_schema, annotated_stream_schema)
     primary_keys = ['customer_id', 'day', '_sdc_id']
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
-
-    real_field_list = []
-    seen_pk_values = set([])
     singer.write_schema(stream_name, stream_schema, primary_keys)
 
+    field_list = []
     for field in xml_attribute_list:
         if field != 'customer_id':
-            real_field_list.append(stream_schema['properties'][field]['field'])
+            field_list.append(stream_schema['properties'][field]['field'])
 
-    start_date = pendulum.parse(get_start(state_key_name(sdk_client.client_customer_id, stream_name)))
+    start_date = pendulum.parse(get_start(state_key_name(customer_id, stream_name)))
     while start_date <= pendulum.now():
-        sync_report_for_day(stream_name, stream_schema, report_downloader, sdk_client.client_customer_id, start_date, real_field_list, primary_keys, seen_pk_values)
+        sync_report_for_day(stream_name, stream_schema, report_downloader, customer_id, start_date, field_list)
         start_date = start_date.add(days=1)
+    LOGGER.info("Done syncing the %s report for customer_id %s", stream_name, customer_id)
 
 def parse_csv_string(csv_string):
     string_buffer = io.StringIO(csv_string)
@@ -148,8 +140,8 @@ def get_xml_attribute_headers(stream_schema, description_headers):
     return xml_attribute_headers
 
 
-def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_id, start, real_field_list, primary_keys, seen_pk_values):
-    LOGGER.info("field list for report is {}".format(real_field_list))
+def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_id, start, field_list):
+    LOGGER.info("field list for report is {}".format(field_list))
     # Create report definition.
     report = {
         'reportName': 'Seems this is required',
@@ -157,15 +149,16 @@ def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_
         'reportType': stream_name,
         'downloadFormat': 'CSV',
         'selector': {
-            'fields': real_field_list,
+            'fields': field_list,
             'dateRange': {'min': start.strftime('%Y%m%d'),
                           'max': start.strftime('%Y%m%d')}}}
 
     # Fetch the report as a csv string
-    # Do not get data with 0 impressions, because some reports don't support that
     result = report_downloader.DownloadReportAsString(
         report, skip_report_header=True, skip_column_header=False,
-        skip_report_summary=True, include_zero_impressions=False)
+        skip_report_summary=True,
+        # Do not get data with 0 impressions, because some reports don't support that
+        include_zero_impressions=False)
 
     headers, values = parse_csv_string(result)
 
@@ -175,17 +168,11 @@ def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_
         obj = transform.transform(obj, stream_schema)
         obj['_sdc_id'] = i
 
-        tup = tuple([obj.get(pk) for pk in primary_keys])
-        if tup in seen_pk_values:
-            raise Exception("Duplicate PK value found for pk values {}".format(dict(zip(primary_keys, tup))))
-        seen_pk_values.add(tup)
         singer.write_record(stream_name, obj)
-    LOGGER.info("Persisted %s records for the %s report for %s", i, stream_name, start)
 
     utils.update_state(STATE, state_key_name(customer_id, stream_name), start)
     singer.write_state(STATE)
-
-    LOGGER.info("Done syncing for customer id {} report {} for date range {} to {}".format(customer_id, stream_name, start, start))
+    LOGGER.info("Done syncing %s records for the %s report for customer_id %s on %s", i, stream_name, customer_id, start)
 
 def suds_to_dict(obj):
     if not hasattr(obj, '__keylist__'):
@@ -203,6 +190,7 @@ def suds_to_dict(obj):
     return data
 
 def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
+    customer_id = sdk_client.client_customer_id
     discovered_schema = load_schema(stream_name)
     service_name = GENERIC_ENDPOINT_MAPPINGS[stream_name]['service_name']
     primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream_name]['primary_keys']
@@ -211,7 +199,7 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
     LOGGER.info("Syncing %s", stream_name)
     service_caller = sdk_client.GetService(service_name, version=VERSION)
 
-    field_list = get_fields(discovered_schema, annotated_stream_schema)
+    field_list = get_fields_to_sync(discovered_schema, annotated_stream_schema)
     field_list = [f[0].upper()+f[1:] for f in field_list]
     offset = 0
     selector = {
@@ -234,6 +222,7 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
         offset += PAGE_SIZE
         selector['paging']['startIndex'] = str(offset)
         more_pages = offset < int(page['totalNumEntries'])
+    LOGGER.info("Done syncing %s for customer_id %s", stream_name, customer_id)
 
 def sync_stream(stream, annotated_schema, sdk_client):
     if stream in GENERIC_ENDPOINT_MAPPINGS:
