@@ -310,7 +310,7 @@ def do_discover(customer_ids):
     schema = {}
     schema.update(generic_schema)
     schema.update(report_schema)
-    json.dump({"streams": schema}, sys.stdout, indent=4)
+    json.dump({"streams": schema}, sys.stdout, indent=2)
 
 def create_sdk_client(customer_id):
     oauth2_client = oauth2.GoogleRefreshTokenClient(
