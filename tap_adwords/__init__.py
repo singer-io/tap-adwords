@@ -47,6 +47,19 @@ GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
                              "accounts":  {'primary_keys': ["customerId"],
                                            'service_name': 'ManagedCustomerService'}}
 
+UNSUPPORTED_REPORTS = frozenset([
+    'UNKNOWN',
+    # the following reports do not allow for querying by date range
+    'CAMPAIGN_NEGATIVE_KEYWORDS_PERFORMANCE_REPORT',
+    'CAMPAIGN_NEGATIVE_PLACEMENTS_PERFORMANCE_REPORT',
+    'SHARED_SET_REPORT',
+    'CAMPAIGN_SHARED_SET_REPORT',
+    'SHARED_SET_CRITERIA_REPORT',
+    'BUDGET_PERFORMANCE_REPORT',
+    'CAMPAIGN_NEGATIVE_LOCATIONS_REPORT',
+    'LABEL_REPORT',
+])
+
 REQUIRED_CONFIG_KEYS = [
     "start_date",
     "oauth_client_id",
@@ -101,8 +114,7 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
     stream_schema = create_schema_for_report(stream_name, sdk_client)
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
     xml_attribute_list = get_fields(stream_schema, annotated_stream_schema)
-    primary_keys = []
-    primary_keys += get_report_segment_fields(annotated_stream_schema) + ['customer_id', 'day']
+    primary_keys = ['customer_id', 'day', '_sdc_id']
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
 
     real_field_list = []
@@ -157,17 +169,18 @@ def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_
 
     headers, values = parse_csv_string(result)
 
-    for val in values:
+    for i, val in enumerate(values):
         obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
         obj['customer_id'] = customer_id
         obj = transform.transform(obj, stream_schema)
-        print("ojbect is {}".format(obj))
+        obj['_sdc_id'] = i
+
         tup = tuple([obj.get(pk) for pk in primary_keys])
         if tup in seen_pk_values:
             raise Exception("Duplicate PK value found for pk values {}".format(dict(zip(primary_keys, tup))))
         seen_pk_values.add(tup)
-        print("about to write record")
         singer.write_record(stream_name, obj)
+    LOGGER.info("Persisted %s records for the %s report for %s", i, stream_name, start)
 
     utils.update_state(STATE, state_key_name(customer_id, stream_name), start)
     singer.write_state(STATE)
@@ -254,6 +267,9 @@ def create_schema_for_report(stream, sdk_client):
                                                         'field': field['fieldName'],
                                                         'inclusion': "available"}
         report_properties[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
+        if field['xmlAttributeName'] == 'day':
+            report_properties['day']['inclusion'] = 'always'
+
     report_properties['customer_id'] = {'description': 'Profile ID',
                                         'behavior': 'ATTRIBUTE',
                                         'type': 'string',
@@ -268,8 +284,8 @@ def do_discover_reports(sdk_client):
     top_res = request_xsd(url)
     root = ET.fromstring(top_res)
     path = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
-    streams = [p.attrib['value'] for p in path]
-    streams.remove("UNKNOWN")
+    streams = [p.attrib['value'] for p in path if p.attrib['value'] not in UNSUPPORTED_REPORTS]
+
     schema = {}
     for stream in streams:
         stream_schema = create_schema_for_report(stream, sdk_client)
