@@ -88,9 +88,13 @@ def get_start(key):
 def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
 
-def get_fields_to_sync(stream_schema, annotated_schema):
-    props = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
-    return [k for k in props if props[k].get('selected') or stream_schema['properties'][k].get('inclusion') == 'always']
+def should_sync(discovered_schema, annotated_schema, field):
+    return annotated_schema['properties'][field].get('selected') \
+        or discovered_schema['properties'][field].get('inclusion') == 'always'
+
+def get_fields_to_sync(discovered_schema, annotated_schema):
+    fields = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
+    return [field for field in fields if should_sync(discovered_schema, annotated_schema, field)]
 
 # No rate limit here, since this request is only made once
 # per discovery (not sync) job
@@ -103,7 +107,6 @@ def request_xsd(url):
 
 def sync_report(stream_name, annotated_stream_schema, sdk_client):
     customer_id = sdk_client.client_customer_id
-    report_downloader = sdk_client.GetReportDownloader(version=VERSION)
 
     stream_schema = create_schema_for_report(stream_name, sdk_client)
     xml_attribute_list = get_fields_to_sync(stream_schema, annotated_stream_schema)
@@ -118,7 +121,7 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
 
     start_date = pendulum.parse(get_start(state_key_name(customer_id, stream_name)))
     while start_date <= pendulum.now():
-        sync_report_for_day(stream_name, stream_schema, report_downloader, customer_id, start_date, field_list)
+        sync_report_for_day(stream_name, stream_schema, sdk_client, start_date, field_list)
         start_date = start_date.add(days=1)
     LOGGER.info("Done syncing the %s report for customer_id %s", stream_name, customer_id)
 
@@ -140,9 +143,9 @@ def get_xml_attribute_headers(stream_schema, description_headers):
     return xml_attribute_headers
 
 
-def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_id, start, field_list):
-    LOGGER.info("field list for report is {}".format(field_list))
-    # Create report definition.
+def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list):
+    report_downloader = sdk_client.GetReportDownloader(version=VERSION)
+    customer_id = sdk_client.client_customer_id
     report = {
         'reportName': 'Seems this is required',
         'dateRangeType': 'CUSTOM_DATE',
@@ -161,7 +164,7 @@ def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_
         include_zero_impressions=False)
 
     headers, values = parse_csv_string(result)
-
+    i = 0
     for i, val in enumerate(values):
         obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
         obj['customer_id'] = customer_id
@@ -172,7 +175,8 @@ def sync_report_for_day(stream_name, stream_schema, report_downloader, customer_
 
     utils.update_state(STATE, state_key_name(customer_id, stream_name), start)
     singer.write_state(STATE)
-    LOGGER.info("Done syncing %s records for the %s report for customer_id %s on %s", i, stream_name, customer_id, start)
+    LOGGER.info("Done syncing %s records for the %s report for customer_id %s on %s",
+                i, stream_name, customer_id, start)
 
 def suds_to_dict(obj):
     if not hasattr(obj, '__keylist__'):
@@ -270,16 +274,12 @@ def create_schema_for_report(stream, sdk_client):
 
 def do_discover_reports(sdk_client):
     url = 'https://adwords.google.com/api/adwords/reportdownload/v201702/reportDefinition.xsd'
-    top_res = request_xsd(url)
-    root = ET.fromstring(top_res)
-    path = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
-    streams = [p.attrib['value'] for p in path if p.attrib['value'] not in UNSUPPORTED_REPORTS]
+    xsd = request_xsd(url)
+    root = ET.fromstring(xsd)
+    nodes = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
 
-    schema = {}
-    for stream in streams:
-        stream_schema = create_schema_for_report(stream, sdk_client)
-
-        schema[stream] = stream_schema
+    streams = [p.attrib['value'] for p in nodes if p.attrib['value'] not in UNSUPPORTED_REPORTS]
+    schema = {stream: create_schema_for_report(stream, sdk_client) for stream in streams}
 
     LOGGER.info("Report discovery complete")
     return schema
@@ -290,6 +290,7 @@ def do_discover_generic_endpoints():
         LOGGER.info('Loading schema for %s', stream_name)
         stream_schema = load_schema(stream_name)
         schema.update({stream_name: stream_schema})
+    LOGGER.info("Generic discovery complete")
     return schema
 
 def do_discover(customer_ids):
