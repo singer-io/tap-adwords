@@ -221,8 +221,8 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
         # Display results.
         if 'entries' in page:
             for entry in page['entries']:
-
-                singer.write_record(stream_name, transform.transform(suds_to_dict(entry), discovered_schema))
+                record = transform.transform(suds_to_dict(entry), discovered_schema)
+                singer.write_record(stream_name, record)
         offset += PAGE_SIZE
         selector['paging']['startIndex'] = str(offset)
         more_pages = offset < int(page['totalNumEntries'])
