@@ -269,6 +269,7 @@ def create_schema_for_report(stream, sdk_client):
                                         'field': "customer_id",
                                         'inclusion': 'automatic'}
     return {"type": "object",
+            "is_report": 'true',
             "properties": report_properties,
             "inclusion": "available"}
 
