@@ -168,7 +168,7 @@
           }
         },
         "id": {
-          "inclusion": "always",
+          "inclusion": "automatic",
           "type": [
             "null",
             "integer"
@@ -838,7 +838,7 @@
       ]
     },
     "adGroupId": {
-      "inclusion": "always",
+      "inclusion": "automatic",
       "type": [
         "null",
         "integer"
