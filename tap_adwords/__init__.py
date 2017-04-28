@@ -90,7 +90,7 @@ def state_key_name(customer_id, report_name):
 
 def should_sync(discovered_schema, annotated_schema, field):
     return annotated_schema['properties'][field].get('selected') \
-        or discovered_schema['properties'][field].get('inclusion') == 'always'
+        or discovered_schema['properties'][field].get('inclusion') == 'automatic'
 
 def get_fields_to_sync(discovered_schema, annotated_schema):
     fields = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
@@ -261,14 +261,15 @@ def create_schema_for_report(stream, sdk_client):
                                                         'inclusion': "available"}
         report_properties[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
         if field['xmlAttributeName'] == 'day':
-            report_properties['day']['inclusion'] = 'always'
+            report_properties['day']['inclusion'] = 'automatic'
 
     report_properties['customer_id'] = {'description': 'Profile ID',
                                         'behavior': 'ATTRIBUTE',
                                         'type': 'string',
                                         'field': "customer_id",
-                                        'inclusion': 'always'}
+                                        'inclusion': 'automatic'}
     return {"type": "object",
+            "is_report": 'true',
             "properties": report_properties,
             "inclusion": "available"}
 

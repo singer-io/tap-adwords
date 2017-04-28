@@ -16,7 +16,7 @@
       ]
     },
     "customerId": {
-      "inclusion": "always",
+      "inclusion": "automatic",
       "type": [
         "null",
         "integer"
