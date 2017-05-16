@@ -97,11 +97,11 @@ def get_fields_to_sync(discovered_schema, annotated_schema):
     return [field for field in fields if should_sync(discovered_schema, annotated_schema, field)]
 
 
-def strip_inclusion(d):
-    d.pop("inclusion", None)
-    for k, v in d.items():
-        if isinstance(v, dict):
-            strip_inclusion(v)
+def strip_inclusion(dic):
+    dic.pop("inclusion", None)
+    for val in dic.values():
+        if isinstance(val, dict):
+            strip_inclusion(val)
 
 def write_schema(stream_name, schema, primary_keys):
     strip_inclusion(schema)
