@@ -78,21 +78,12 @@
       ],
       "format": "date-time"
     },
-    "budget": {
+    "budgetId": {
       "inclusion": "available",
       "type": [
         "null",
-        "object"
-      ],
-      "properties": {
-        "budgetId": {
-          "inclusion": "available",
-          "type": [
-            "null",
-            "integer"
-          ]
-        }
-      }
+        "integer"
+      ]
     },
     "name": {
       "inclusion": "available",
