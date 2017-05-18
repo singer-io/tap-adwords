@@ -96,6 +96,17 @@ def get_fields_to_sync(discovered_schema, annotated_schema):
     fields = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
     return [field for field in fields if should_sync(discovered_schema, annotated_schema, field)]
 
+
+def strip_inclusion(dic):
+    dic.pop("inclusion", None)
+    for val in dic.values():
+        if isinstance(val, dict):
+            strip_inclusion(val)
+
+def write_schema(stream_name, schema, primary_keys):
+    strip_inclusion(schema)
+    singer.write_schema(stream_name, schema, primary_keys)
+
 # No rate limit here, since this request is only made once
 # per discovery (not sync) job
 def request_xsd(url):
@@ -112,7 +123,7 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
     xml_attribute_list = get_fields_to_sync(stream_schema, annotated_stream_schema)
     primary_keys = ['customer_id', 'day', '_sdc_id']
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
-    singer.write_schema(stream_name, stream_schema, primary_keys)
+    write_schema(stream_name, stream_schema, primary_keys)
 
     field_list = []
     for field in xml_attribute_list:
@@ -198,7 +209,7 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
     discovered_schema = load_schema(stream_name)
     service_name = GENERIC_ENDPOINT_MAPPINGS[stream_name]['service_name']
     primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream_name]['primary_keys']
-    singer.write_schema(stream_name, discovered_schema, primary_keys)
+    write_schema(stream_name, discovered_schema, primary_keys)
 
     LOGGER.info("Syncing %s", stream_name)
     service_caller = sdk_client.GetService(service_name, version=VERSION)
