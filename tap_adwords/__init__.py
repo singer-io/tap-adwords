@@ -60,6 +60,10 @@ UNSUPPORTED_REPORTS = frozenset([
     'LABEL_REPORT',
 ])
 
+REPORTS_WITH_90_DAY_MAX = frozenset([
+    'CLICK_PERFORMANCE_REPORT',
+])
+
 REQUIRED_CONFIG_KEYS = [
     "start_date",
     "oauth_client_id",
@@ -131,6 +135,12 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
             field_list.append(stream_schema['properties'][field]['field'])
 
     start_date = pendulum.parse(get_start(state_key_name(customer_id, stream_name)))
+
+    if stream_name in REPORTS_WITH_90_DAY_MAX:
+        cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=90)
+        if start_date < cutoff:
+            start_date = cutoff
+
     while start_date <= pendulum.now():
         sync_report_for_day(stream_name, stream_schema, sdk_client, start_date, field_list)
         start_date = start_date.add(days=1)
