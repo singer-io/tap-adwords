@@ -135,9 +135,8 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
             field_list.append(stream_schema['properties'][field]['field'])
 
     start_date = pendulum.parse(get_start(state_key_name(customer_id, stream_name)))
-
     if stream_name in REPORTS_WITH_90_DAY_MAX:
-        cutoff = start_date.subtract(days=90)
+        cutoff = pendulum.utcnow().subtract(days=90)
         if start_date < cutoff:
             start_date = cutoff
 
