@@ -5,7 +5,7 @@ This is a [Singer](https://singer.io) tap that produces JSON-formatted data foll
 
 ## Quick start
 
-1. Install
+### Install
 
   We recommend using a virtualenv:
 
@@ -15,12 +15,12 @@ This is a [Singer](https://singer.io) tap that produces JSON-formatted data foll
     > pip install tap-adwords
     ```
 
-2. Get Access to the AdWords API
+### Get Access to the AdWords API
 
   To use the AdWords API, you must request and be granted access.
 https://developers.google.com/adwords/api/docs/guides/signup
 
-3. Set up OAuth2 authentication
+### Set up OAuth2 authentication
 
   The Tap will need to access user data and contact Google services on your behalf. Authentication via OAuth2 allows your app to operate on behalf of your account. To enable your app to access the API, you need an OAuth2 client ID and client secret.
 
@@ -28,7 +28,7 @@ https://developers.google.com/adwords/api/docs/guides/signup
 
   https://developers.google.com/adwords/api/docs/guides/first-api-call#set_up_oauth2_authentication
 
-4. Create the config file
+### Create the config file
 
     The AdWords Tap will use the developer token and OAuth properties from the previous steps. Additionally you will need:
 
@@ -48,7 +48,7 @@ https://developers.google.com/adwords/api/docs/guides/signup
      "customer_ids": ""}
     ```
 
-5. [Optional] Create the initial state file
+### [Optional] Create the initial state file
 
     You can provide JSON file that contains a date for the streams to force the application to only fetch data newer than those dates. If you omit the file it will fetch all data for the selected streams.
 
@@ -58,12 +58,12 @@ https://developers.google.com/adwords/api/docs/guides/signup
      "CRITERIA_PERFORMANCE_REPORT_12345":"2017-01-01T00:00:00Z"}
     ```
 
-6. Create a properties file
+### Create a properties file
 
   The properties file will indicate what streams and fields to replicate from the AdWords API. The Tap takes advantage of the Singer best practices for [schema discovery and property selection](https://github.com/singer-io/getting-started/blob/master/BEST_PRACTICES.md#schema-discovery-and-property-selection).
 
 
-7. Run the Tap
+### Run the Tap
 
   `tap-adwords -c config.json -p properties.json -s state.json`
 
