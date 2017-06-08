@@ -1,4 +1,5 @@
 {
+  "additionalProperties": false,
   "inclusion": "available",
   "type": [
     "null",
@@ -115,7 +116,7 @@
       }
     },
     "biddingStrategyConfiguration": {
-      "inclusion": "available",
+      "inclusion": "automatic",
       "type": [
         "null",
         "object"

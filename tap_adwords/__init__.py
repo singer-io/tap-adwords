@@ -214,12 +214,13 @@ def suds_to_dict(obj):
     return data
 
 campaigns_black_listed_fields = set(['networkSetting', 'conversionOptimizerEligibility', 'frequencyCap'])
+ad_groups_black_listed_fields = set(['biddingStrategyConfiguration'])
 
 def filter_fields_to_sync_by_stream_name(stream_name, fields_to_sync):
     if stream_name == 'campaigns':
       return [f for f in fields_to_sync if f not in campaigns_black_listed_fields]
     elif stream_name == 'ad_groups':
-      return fields_to_sync
+      return [f for f in fields_to_sync if f not in ad_groups_black_listed_fields]
     elif stream_name == 'ads':
       return fields_to_sync
     else:
