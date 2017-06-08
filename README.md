@@ -14,7 +14,6 @@ This tap:
 - Outputs the schema for each resource
 - Incrementally pulls data based on the input state
 
-
 ## Quick start
 
 ### Install
