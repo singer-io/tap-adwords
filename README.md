@@ -48,7 +48,7 @@ https://developers.google.com/adwords/api/docs/guides/signup
      "customer_ids": ""}
     ```
 
-4. [Optional] Create the initial state file
+5. [Optional] Create the initial state file
 
     You can provide JSON file that contains a date for the streams to force the application to only fetch data newer than those dates. If you omit the file it will fetch all data for the selected streams.
 
@@ -58,12 +58,12 @@ https://developers.google.com/adwords/api/docs/guides/signup
      "CRITERIA_PERFORMANCE_REPORT_12345":"2017-01-01T00:00:00Z"}
     ```
 
-5. Create a properties file
+6. Create a properties file
 
   The properties file will indicate what streams and fields to replicate from the AdWords API. The Tap takes advantage of the Singer best practices for [schema discovery and property selection](https://github.com/singer-io/getting-started/blob/master/BEST_PRACTICES.md#schema-discovery-and-property-selection).
 
 
-6. Run the Tap
+7. Run the Tap
 
   `tap-adwords -c config.json -p properties.json -s state.json`
 
