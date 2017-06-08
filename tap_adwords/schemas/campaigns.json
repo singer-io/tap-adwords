@@ -106,22 +106,6 @@
         "string"
       ]
     },
-    "conversionOptimizerEligibility": {
-      "inclusion": "available",
-      "type": [
-        "null",
-        "object"
-      ],
-      "properties": {
-        "eligible": {
-          "inclusion": "available",
-          "type": [
-            "null",
-            "integer"
-          ]
-        }
-      }
-    },
     "advertisingChannelType": {
       "inclusion": "available",
       "type": [
@@ -129,51 +113,12 @@
         "string"
       ]
     },
-    "networkSetting": {
-      "inclusion": "available",
-      "type": [
-        "null",
-        "object"
-      ],
-      "properties": {
-        "targetGoogleSearch": {
-          "inclusion": "available",
-          "type": [
-            "null",
-            "integer"
-          ]
-        }
-      }
-    },
     "baseCampaignId": {
       "inclusion": "available",
       "type": [
         "null",
         "integer"
       ]
-    },
-    "frequencyCap": {
-      "inclusion": "available",
-      "type": [
-        "null",
-        "object"
-      ],
-      "properties": {
-        "impressions": {
-          "inclusion": "available",
-          "type": [
-            "null",
-            "integer"
-          ]
-        },
-        "timeUnit": {
-          "inclusion": "available",
-          "type": [
-            "null",
-            "string"
-          ]
-        }
-      }
     },
     "labels": {
       "items": {
