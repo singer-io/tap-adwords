@@ -223,6 +223,8 @@ def filter_fields_to_sync_by_stream_name(stream_name, fields_to_sync):
       return [f for f in fields_to_sync if f not in ad_groups_black_listed_fields]
     elif stream_name == 'ads':
       return fields_to_sync
+    elif stream_name == 'accounts':
+      return fields_to_sync
     else:
       raise Exception("unrecognized generic stream_name {}".format(stream_name))
 
