@@ -219,15 +219,15 @@ AD_GROUPS_BLACK_LISTED_FIELDS = set(['biddingStrategyConfiguration'])
 
 def filter_fields_by_stream_name(stream_name, fields_to_sync):
     if stream_name == 'campaigns':
-      return [f for f in fields_to_sync if f not in CAMPAIGNS_BLACK_LISTED_FIELDS]
+        return [f for f in fields_to_sync if f not in CAMPAIGNS_BLACK_LISTED_FIELDS]
     elif stream_name == 'ad_groups':
-      return [f for f in fields_to_sync if f not in AD_GROUPS_BLACK_LISTED_FIELDS]
+        return [f for f in fields_to_sync if f not in AD_GROUPS_BLACK_LISTED_FIELDS]
     elif stream_name == 'ads':
-      return fields_to_sync
+        return fields_to_sync
     elif stream_name == 'accounts':
-      return fields_to_sync
+        return fields_to_sync
     else:
-      raise Exception("unrecognized generic stream_name {}".format(stream_name))
+        raise Exception("unrecognized generic stream_name {}".format(stream_name))
 
 def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
     customer_id = sdk_client.client_customer_id
