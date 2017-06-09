@@ -213,14 +213,15 @@ def suds_to_dict(obj):
             data[field] = suds_to_dict(val)
     return data
 
-campaigns_black_listed_fields = set(['networkSetting', 'conversionOptimizerEligibility', 'frequencyCap'])
-ad_groups_black_listed_fields = set(['biddingStrategyConfiguration'])
+CAMPAIGNS_BLACK_LISTED_FIELDS = set(['networkSetting', 'conversionOptimizerEligibility',
+                                     'frequencyCap'])
+AD_GROUPS_BLACK_LISTED_FIELDS = set(['biddingStrategyConfiguration'])
 
-def filter_fields_to_sync_by_stream_name(stream_name, fields_to_sync):
+def filter_fields_by_stream_name(stream_name, fields_to_sync):
     if stream_name == 'campaigns':
-      return [f for f in fields_to_sync if f not in campaigns_black_listed_fields]
+      return [f for f in fields_to_sync if f not in CAMPAIGNS_BLACK_LISTED_FIELDS]
     elif stream_name == 'ad_groups':
-      return [f for f in fields_to_sync if f not in ad_groups_black_listed_fields]
+      return [f for f in fields_to_sync if f not in AD_GROUPS_BLACK_LISTED_FIELDS]
     elif stream_name == 'ads':
       return fields_to_sync
     elif stream_name == 'accounts':
@@ -239,7 +240,7 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
     LOGGER.info("Syncing %s", stream_name)
     field_list = get_fields_to_sync(discovered_schema, annotated_stream_schema)
     LOGGER.info("Request fields: %s", field_list)
-    field_list = filter_fields_to_sync_by_stream_name(stream_name, field_list)
+    field_list = filter_fields_by_stream_name(stream_name, field_list)
     LOGGER.info("Filtered fields: %s", field_list)
 
     field_list = [f[0].upper()+f[1:] for f in field_list]
