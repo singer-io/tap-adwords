@@ -1,4 +1,5 @@
 {
+  "additionalProperties": false,
   "type": [
     "null",
     "object"
@@ -107,7 +108,7 @@
       ]
     },
     "conversionOptimizerEligibility": {
-      "inclusion": "available",
+      "inclusion": "automatic",
       "type": [
         "null",
         "object"
@@ -130,7 +131,7 @@
       ]
     },
     "networkSetting": {
-      "inclusion": "available",
+      "inclusion": "automatic",
       "type": [
         "null",
         "object"
@@ -153,7 +154,7 @@
       ]
     },
     "frequencyCap": {
-      "inclusion": "available",
+      "inclusion": "automatic",
       "type": [
         "null",
         "object"

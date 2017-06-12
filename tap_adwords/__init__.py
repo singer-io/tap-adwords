@@ -42,7 +42,7 @@ GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
                                            'service_name': 'CampaignService'},
                              "ad_groups": {'primary_keys': ["id"],
                                            'service_name': 'AdGroupService'},
-                             "ads":       {'primary_keys': ["id", "adGroupId"],
+                             "ads":       {'primary_keys': ["adGroupId"],
                                            'service_name': 'AdGroupAdService'},
                              "accounts":  {'primary_keys': ["customerId"],
                                            'service_name': 'ManagedCustomerService'}}
@@ -213,6 +213,22 @@ def suds_to_dict(obj):
             data[field] = suds_to_dict(val)
     return data
 
+CAMPAIGNS_BLACK_LISTED_FIELDS = set(['networkSetting', 'conversionOptimizerEligibility',
+                                     'frequencyCap'])
+AD_GROUPS_BLACK_LISTED_FIELDS = set(['biddingStrategyConfiguration'])
+
+def filter_fields_by_stream_name(stream_name, fields_to_sync):
+    if stream_name == 'campaigns':
+        return [f for f in fields_to_sync if f not in CAMPAIGNS_BLACK_LISTED_FIELDS]
+    elif stream_name == 'ad_groups':
+        return [f for f in fields_to_sync if f not in AD_GROUPS_BLACK_LISTED_FIELDS]
+    elif stream_name == 'ads':
+        return fields_to_sync
+    elif stream_name == 'accounts':
+        return fields_to_sync
+    else:
+        raise Exception("unrecognized generic stream_name {}".format(stream_name))
+
 def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
     customer_id = sdk_client.client_customer_id
     discovered_schema = load_schema(stream_name)
@@ -220,11 +236,15 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
     primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream_name]['primary_keys']
     write_schema(stream_name, discovered_schema, primary_keys)
 
-    LOGGER.info("Syncing %s", stream_name)
     service_caller = sdk_client.GetService(service_name, version=VERSION)
-
+    LOGGER.info("Syncing %s", stream_name)
     field_list = get_fields_to_sync(discovered_schema, annotated_stream_schema)
+    LOGGER.info("Request fields: %s", field_list)
+    field_list = filter_fields_by_stream_name(stream_name, field_list)
+    LOGGER.info("Filtered fields: %s", field_list)
+
     field_list = [f[0].upper()+f[1:] for f in field_list]
+
     offset = 0
     selector = {
         'fields': field_list,
