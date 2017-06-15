@@ -275,7 +275,9 @@ def sync_stream(stream, annotated_schema, sdk_client):
         sync_report(stream, annotated_schema, sdk_client)
 
 def do_sync(annotated_schema, sdk_client):
-    for stream_name, stream_schema in annotated_schema['streams'].items():
+    for stream in annotated_schema['streams']:
+        stream_name = stream.get('stream')
+        stream_schema = stream.get('schema')
         if stream_schema.get('selected'):
             sync_stream(stream_name, stream_schema, sdk_client)
 
@@ -319,29 +321,35 @@ def do_discover_reports(sdk_client):
     root = ET.fromstring(xsd)
     nodes = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
 
-    streams = [p.attrib['value'] for p in nodes if p.attrib['value'] not in UNSUPPORTED_REPORTS]
-    schema = {stream: create_schema_for_report(stream, sdk_client) for stream in streams}
-
+    stream_names = [p.attrib['value'] for p in nodes if p.attrib['value'] not in UNSUPPORTED_REPORTS] #pylint: disable=line-too-long
+    streams = []
+    LOGGER.info("Starting report discovery")
+    for stream_name in stream_names:
+        streams.append({'stream': stream_name,
+                        'tap_stream_id': stream_name,
+                        'schema': create_schema_for_report(stream_name, sdk_client)})
     LOGGER.info("Report discovery complete")
-    return schema
+    return streams
 
 def do_discover_generic_endpoints():
-    schema = {}
+    streams = []
+    LOGGER.info("Starting generic discovery")
     for stream_name in GENERIC_ENDPOINT_MAPPINGS:
         LOGGER.info('Loading schema for %s', stream_name)
-        stream_schema = load_schema(stream_name)
-        schema.update({stream_name: stream_schema})
+        streams.append({'stream': stream_name,
+                        'tap_stream_id': stream_name,
+                        'schema': load_schema(stream_name)})
     LOGGER.info("Generic discovery complete")
-    return schema
+    return streams
 
 def do_discover(customer_ids):
     sdk_client = create_sdk_client(customer_ids[0])
-    generic_schema = do_discover_generic_endpoints()
-    report_schema = do_discover_reports(sdk_client)
-    schema = {}
-    schema.update(generic_schema)
-    schema.update(report_schema)
-    json.dump({"streams": schema}, sys.stdout, indent=2)
+    generic_streams = do_discover_generic_endpoints()
+    report_streams = do_discover_reports(sdk_client)
+    streams = []
+    streams.extend(generic_streams)
+    streams.extend(report_streams)
+    json.dump({"streams": streams}, sys.stdout, indent=2)
 
 def create_sdk_client(customer_id):
     oauth2_client = oauth2.GoogleRefreshTokenClient(
