@@ -19,7 +19,7 @@ import requests
 import singer
 
 from singer import utils
-from singer import transform
+from tap_adwords import transform
 
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
