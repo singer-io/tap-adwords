@@ -167,8 +167,6 @@ def transform_pre_hook(data, typ, schema):
         if data.contains('--'):
             return None
 
-        data = data.replace('%', '')
-
     return data
 
 def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list):
