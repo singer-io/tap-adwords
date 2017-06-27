@@ -162,7 +162,7 @@ def get_xml_attribute_headers(stream_schema, description_headers):
     xml_attribute_headers = [description_to_xml_attribute[header] for header in description_headers]
     return xml_attribute_headers
 
-def transform_pre_hook(data, typ):
+def transform_pre_hook(data, typ, schema):
     if typ == "number":
         if data.contains('--'):
             return None
