@@ -162,6 +162,14 @@ def get_xml_attribute_headers(stream_schema, description_headers):
     xml_attribute_headers = [description_to_xml_attribute[header] for header in description_headers]
     return xml_attribute_headers
 
+def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
+    if typ == "number":
+        if data.contains('--'):
+            return None
+
+        data.replace('%', '')
+
+    return data
 
 def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list):
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
@@ -188,7 +196,8 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
     for i, val in enumerate(values):
         obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
         obj['customer_id'] = customer_id
-        obj = transform.transform(obj, stream_schema)
+        obj = transform.transform(obj, stream_schema,
+                                  pre_hook=transform_pre_hook)
         obj['_sdc_id'] = i
 
         singer.write_record(stream_name, obj)
@@ -261,7 +270,8 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
         # Display results.
         if 'entries' in page:
             for entry in page['entries']:
-                record = transform.transform(suds_to_dict(entry), discovered_schema)
+                record = transform.transform(suds_to_dict(entry), discovered_schema,
+                                             pre_hook=transform_pre_hook)
                 singer.write_record(stream_name, record)
         offset += PAGE_SIZE
         selector['paging']['startIndex'] = str(offset)
