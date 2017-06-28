@@ -167,6 +167,12 @@ def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
         if data.contains('--'):
             return None
 
+        if data == "> 90%":
+            data = "90.01"
+
+        if data == "< 10%":
+            data = "9.99"
+
         data.replace('%', '')
 
     return data
