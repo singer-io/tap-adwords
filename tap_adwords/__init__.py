@@ -26,16 +26,16 @@ SESSION = requests.Session()
 PAGE_SIZE = 100
 VERSION = 'v201702'
 
-REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": "boolean"},
-                        "boolean":  {'type': "boolean"},
-                        "Double":   {"type": "number"},
-                        "int":      {"type": "integer"},
-                        "Integer":  {"type": "integer"},
-                        "long":     {"type": "integer"},
-                        "Long":     {"type": "integer"},
-                        "Date":     {"type": "string",
+REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
+                        "boolean":  {'type': ["null", "boolean"]},
+                        "Double":   {"type": ["null", "number"]},
+                        "int":      {"type": ["null", "integer"]},
+                        "Integer":  {"type": ["null", "integer"]},
+                        "long":     {"type": ["null", "integer"]},
+                        "Long":     {"type": ["null", "integer"]},
+                        "Date":     {"type": ["null", "string"],
                                      "format": "date-time"},
-                        "DateTime": {"type": "string",
+                        "DateTime": {"type": ["null", "string"],
                                      "format": "date-time"}}
 
 GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
@@ -163,7 +163,7 @@ def get_xml_attribute_headers(stream_schema, description_headers):
     return xml_attribute_headers
 
 def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
-    if '--' in data:
+    if data is not None and '--' in data:
         data = None
 
     if typ == "number":
@@ -305,12 +305,8 @@ def get_report_definition_service(report_type, sdk_client):
 
 def create_type_map(typ):
     if REPORT_TYPE_MAPPINGS.get(typ):
-        m = REPORT_TYPE_MAPPINGS.get(typ)
-    else:
-        m = {'type' : 'string'}
-
-    m['type'] = ['null', m['type']]
-    return m
+        return REPORT_TYPE_MAPPINGS.get(typ)
+    return {'type' : ['null', 'string']}
 
 def create_schema_for_report(stream, sdk_client):
     report_properties = {}
