@@ -26,6 +26,8 @@ SESSION = requests.Session()
 PAGE_SIZE = 100
 VERSION = 'v201702'
 
+SYNC_ERRORS = {}
+
 REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
                         "boolean":  {'type': ["null", "boolean"]},
                         "Double":   {"type": ["null", "number"]},
@@ -133,6 +135,8 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
     for field in xml_attribute_list:
         if field != 'customer_id':
             field_list.append(stream_schema['properties'][field]['field'])
+
+    check_selected_fields(stream_name, field_list, sdk_client)
 
     start_date = pendulum.parse(get_start(state_key_name(customer_id, stream_name)))
     if stream_name in REPORTS_WITH_90_DAY_MAX:
@@ -295,7 +299,17 @@ def do_sync(annotated_schema, sdk_client):
         stream_name = stream.get('stream')
         stream_schema = stream.get('schema')
         if stream_schema.get('selected'):
-            sync_stream(stream_name, stream_schema, sdk_client)
+            try:
+                sync_stream(stream_name, stream_schema, sdk_client)
+            except Exception as e:
+                SYNC_ERRORS[stream_name] = e
+
+    if SYNC_ERRORS:
+        msg  = "Errors occured during sync:\n\n"
+        for name, error in SYNC_ERRORS.items():
+            msg += "{}: {}\n\n".format(name, error)
+
+        raise Exception(msg)
 
 def get_report_definition_service(report_type, sdk_client):
     report_definition_service = sdk_client.GetService(
@@ -330,6 +344,31 @@ def create_schema_for_report(stream, sdk_client):
             "is_report": 'true',
             "properties": report_properties,
             "inclusion": "available"}
+
+def check_selected_fields(stream, field_list, sdk_client):
+    field_set = set(field_list)
+    fields = get_report_definition_service(stream, sdk_client)
+    field_map = {f.fieldName: f.xmlAttributeName for f in fields}
+    errors = []
+    for field in fields:
+        if field.fieldName not in field_set:
+            continue
+
+        if not hasattr(field, "exclusiveFields"):
+            continue
+
+        field_errors = []
+        for ex_field in field.exclusiveFields:
+            if ex_field in field_set:
+                field_errors.append(field_map[ex_field])
+
+        if field_errors:
+            errors.append("{} cannot be selected with {}".format(
+                field.xmlAttributeName, ",".join(field_errors)))
+
+    if errors:
+        raise Exception("Fields selection violates Google's exclusion rules:\n\t{}" \
+                        .format("\n\t".join(errors)))
 
 def do_discover_reports(sdk_client):
     url = 'https://adwords.google.com/api/adwords/reportdownload/v201702/reportDefinition.xsd'
