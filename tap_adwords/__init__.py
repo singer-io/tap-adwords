@@ -163,17 +163,17 @@ def get_xml_attribute_headers(stream_schema, description_headers):
     return xml_attribute_headers
 
 def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
-    if typ == "number":
-        if data.contains('--'):
-            return None
+    if '--' in data:
+        data = None
 
+    if typ == "number":
         if data == "> 90%":
             data = "90.01"
 
         if data == "< 10%":
             data = "9.99"
 
-        data.replace('%', '')
+        data = data.replace('%', '')
 
     return data
 
@@ -305,8 +305,12 @@ def get_report_definition_service(report_type, sdk_client):
 
 def create_type_map(typ):
     if REPORT_TYPE_MAPPINGS.get(typ):
-        return REPORT_TYPE_MAPPINGS.get(typ)
-    return {'type' : 'string'}
+        m = REPORT_TYPE_MAPPINGS.get(typ)
+    else:
+        m = {'type' : 'string'}
+
+    m['type'] = ['null', m['type']]
+    return m
 
 def create_schema_for_report(stream, sdk_client):
     report_properties = {}
