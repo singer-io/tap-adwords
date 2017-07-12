@@ -207,6 +207,7 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
         obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
         obj['customer_id'] = customer_id
         obj = transform.transform(obj, stream_schema,
+                                  integer_datetime_fmt=transform.UNIX_SECONDS_INTEGER_DATETIME_PARSING,
                                   pre_hook=transform_pre_hook)
         obj['_sdc_id'] = i
 

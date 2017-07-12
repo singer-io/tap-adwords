@@ -3,14 +3,14 @@
 from setuptools import setup
 
 setup(name='tap-adwords',
-      version="0.1.3",
+      version="0.1.4",
       description='Singer.io tap for extracting data from the Adwords api',
       author='Stitch',
       url='http://singer.io',
       classifiers=['Programming Language :: Python :: 3 :: Only'],
       py_modules=['tap_adwords'],
       install_requires=[
-          'singer-python==1.9.3',
+          'singer-python==1.9.5',
           'requests==2.13.0',
           'googleads==5.3.0',
           'suds-jurko==0.6'
