@@ -167,7 +167,7 @@ def get_xml_attribute_headers(stream_schema, description_headers):
     return xml_attribute_headers
 
 def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
-    if data is not None and '--' in data:
+    if isinstance(data, str) and '--' in data:
         data = None
 
     if typ == "number":
@@ -277,8 +277,6 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
     more_pages = True
     while more_pages:
         page = service_caller.get(selector)
-
-        # Display results.
         if 'entries' in page:
             for entry in page['entries']:
                 record = transform.transform(suds_to_dict(entry), discovered_schema,

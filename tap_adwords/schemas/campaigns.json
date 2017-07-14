@@ -28,6 +28,21 @@
           "object"
         ],
         "properties": {
+          "details": {
+            "inclusion": "available",
+            "type": [
+              "null",
+              "object"
+            ],
+            "properties": {
+              "criterionTypeGroup": {
+                "type": ["null", "string"]
+              },
+              "targetAll": {
+                "type": ["null", "boolean"]
+              }
+            }
+          },
           "languageCode": {
             "inclusion": "available",
             "type": [
@@ -199,6 +214,13 @@
                 ]
               },
               "backgroundColor": {
+                "inclusion": "available",
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "description": {
                 "inclusion": "available",
                 "type": [
                   "null",
