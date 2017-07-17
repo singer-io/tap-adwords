@@ -308,7 +308,7 @@ def do_sync(annotated_schema, sdk_client):
         for name, error in SYNC_ERRORS.items():
             msg += "{}: {}\n\n".format(name, error)
 
-        raise Exception(msg)
+        raise Exception(msg) from error
 
 def get_report_definition_service(report_type, sdk_client):
     report_definition_service = sdk_client.GetService(
