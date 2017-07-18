@@ -5,13 +5,6 @@
     "object"
   ],
   "properties": {
-    "adGroupCreativeApprovalStatus": {
-      "inclusion": "available",
-      "type": [
-        "null",
-        "string"
-      ]
-    },
     "status": {
       "inclusion": "available",
       "type": [
@@ -19,40 +12,12 @@
         "string"
       ]
     },
-    "trademarks": {
-      "inclusion": "available",
-      "type": [
-        "null",
-        "array"
-      ],
-      "items": {
-        "inclusion": "available",
-        "type": [
-          "null",
-          "string"
-        ]
-      }
-    },
     "baseAdGroupId": {
       "inclusion": "available",
       "type": [
         "null",
         "integer"
       ]
-    },
-    "adGroupAdDisapprovalReasons": {
-      "inclusion": "available",
-      "type": [
-        "null",
-        "array"
-      ],
-      "items": {
-        "inclusion": "available",
-        "type": [
-          "null",
-          "string"
-        ]
-      }
     },
     "policySummary": {
       "inclusion": "available",

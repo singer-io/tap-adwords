@@ -24,7 +24,7 @@ from singer import transform
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
 PAGE_SIZE = 100
-VERSION = 'v201702'
+VERSION = 'v201705'
 
 SYNC_ERRORS = {}
 
