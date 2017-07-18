@@ -206,8 +206,8 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
     for i, val in enumerate(values):
         obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
         obj['customer_id'] = customer_id
-        obj = transform.transform(obj, stream_schema,
-                                  integer_datetime_fmt=transform.UNIX_SECONDS_INTEGER_DATETIME_PARSING,
+        obj = transform(obj, stream_schema,
+                                  integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING,
                                   pre_hook=transform_pre_hook)
         obj['_sdc_id'] = i
 
@@ -279,8 +279,9 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
         page = service_caller.get(selector)
         if 'entries' in page:
             for entry in page['entries']:
-                record = transform.transform(suds_to_dict(entry), discovered_schema,
-                                             pre_hook=transform_pre_hook)
+                record = transform(suds_to_dict(entry), discovered_schema,
+                                   integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING,
+                                   pre_hook=transform_pre_hook)
                 singer.write_record(stream_name, record)
         offset += PAGE_SIZE
         selector['paging']['startIndex'] = str(offset)
