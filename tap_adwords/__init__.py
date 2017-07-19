@@ -371,7 +371,7 @@ def check_selected_fields(stream, field_list, sdk_client):
                         .format("\n\t".join(errors)))
 
 def do_discover_reports(sdk_client):
-    url = 'https://adwords.google.com/api/adwords/reportdownload/v201702/reportDefinition.xsd'
+    url = 'https://adwords.google.com/api/adwords/reportdownload/{}/reportDefinition.xsd'.format(VERSION)
     xsd = request_xsd(url)
     root = ET.fromstring(xsd)
     nodes = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
