@@ -170,7 +170,7 @@ def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
     if isinstance(data, str) and '--' in data:
         data = None
 
-    if typ == "number":
+    elif data and typ == "number":
         if data == "> 90%":
             data = "90.01"
 
