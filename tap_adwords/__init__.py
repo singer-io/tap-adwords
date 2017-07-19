@@ -95,8 +95,15 @@ def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
 
 def should_sync(discovered_schema, annotated_schema, field):
-    return annotated_schema['properties'][field].get('selected') \
-        or discovered_schema['properties'][field].get('inclusion') == 'automatic'
+    if annotated_schema['properties'][field].get('selected') \
+       or discovered_schema['properties'][field].get('inclusion') == 'automatic':
+        LOGGER.info("Should sync %s", field)
+        return True
+    else:
+        LOGGER.info("Should not sync %s", field)
+        LOGGER.info("annotated field: %s", annotated_schema['properties'][field])
+        LOGGER.info("discovered field: %s", discovered_schema['properties'][field])
+        return False
 
 def get_fields_to_sync(discovered_schema, annotated_schema):
     fields = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
@@ -299,10 +306,16 @@ def do_sync(annotated_schema, sdk_client):
         stream_name = stream.get('stream')
         stream_schema = stream.get('schema')
         if stream_schema.get('selected'):
-            try:
-                sync_stream(stream_name, stream_schema, sdk_client)
-            except Exception as e:
-                SYNC_ERRORS[stream_name] = e
+            LOGGER.info('Syncing stream %s ...', stream_name)
+            sync_stream(stream_name, stream_schema, sdk_client)
+            # try:
+            #     sync_stream(stream_name, stream_schema, sdk_client)
+            # except Exception as e:
+            #     SYNC_ERRORS[stream_name] = e
+            #     LOGGER.exception('Exception thrown')
+
+        else:
+            LOGGER.info('Skipping stream %s.', stream_name)
 
     if SYNC_ERRORS:
         msg  = "Errors occured during sync:\n\n"
@@ -419,8 +432,10 @@ def create_sdk_client(customer_id):
 
 def do_sync_all_customers(customer_ids, properties):
     for customer_id in customer_ids:
+        LOGGER.info('Syncing customer ID %s ...', customer_id)
         sdk_client = create_sdk_client(customer_id)
         do_sync(properties, sdk_client)
+        LOGGER.info('Done syncing customer ID %s.', customer_id)
 
 def main():
     args = utils.parse_args(REQUIRED_CONFIG_KEYS)
