@@ -7,6 +7,7 @@ import io
 import csv
 import time
 import json
+import copy
 
 import xml.etree.ElementTree as ET
 from suds.client import Client
@@ -110,8 +111,9 @@ def strip_inclusion(dic):
             strip_inclusion(val)
 
 def write_schema(stream_name, schema, primary_keys):
-    strip_inclusion(schema)
-    singer.write_schema(stream_name, schema, primary_keys)
+    schema_copy = copy.deepcopy(schema)
+    strip_inclusion(schema_copy)
+    singer.write_schema(stream_name, schema_copy, primary_keys)
 
 # No rate limit here, since this request is only made once
 # per discovery (not sync) job
