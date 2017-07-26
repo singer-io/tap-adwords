@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name='tap-adwords',
-      version="0.1.9",
+      version="0.1.10",
       description='Singer.io tap for extracting data from the Adwords api',
       author='Stitch',
       url='http://singer.io',
