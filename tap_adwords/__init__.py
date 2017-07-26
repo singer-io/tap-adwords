@@ -179,6 +179,9 @@ def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
         if data == "< 10%":
             data = "9.99"
 
+        if data.endswith(" x"):
+            data = data[:-2]
+
         data = data.replace('%', '')
 
     return data
@@ -301,10 +304,7 @@ def do_sync(annotated_schema, sdk_client):
         stream_name = stream.get('stream')
         stream_schema = stream.get('schema')
         if stream_schema.get('selected'):
-            try:
-                sync_stream(stream_name, stream_schema, sdk_client)
-            except Exception as e:
-                SYNC_ERRORS[stream_name] = e
+            sync_stream(stream_name, stream_schema, sdk_client)
 
     if SYNC_ERRORS:
         msg  = "Errors occured during sync:\n\n"
