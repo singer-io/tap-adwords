@@ -27,8 +27,6 @@ SESSION = requests.Session()
 PAGE_SIZE = 100
 VERSION = 'v201702'
 
-SYNC_ERRORS = {}
-
 REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
                         "boolean":  {'type': ["null", "boolean"]},
                         "Double":   {"type": ["null", "number"]},
@@ -212,8 +210,8 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
         obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
         obj['customer_id'] = customer_id
         obj = transform(obj, stream_schema,
-                                  integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING,
-                                  pre_hook=transform_pre_hook)
+                        integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING,
+                        pre_hook=transform_pre_hook)
         obj['_sdc_id'] = i
 
         singer.write_record(stream_name, obj)
@@ -285,7 +283,7 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
         if 'entries' in page:
             for entry in page['entries']:
                 record = transform(suds_to_dict(entry), discovered_schema,
-                                   integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING,
+                                   integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING, # pylint: disable=line-too-long
                                    pre_hook=transform_pre_hook)
                 singer.write_record(stream_name, record)
         offset += PAGE_SIZE
@@ -305,13 +303,6 @@ def do_sync(annotated_schema, sdk_client):
         stream_schema = stream.get('schema')
         if stream_schema.get('selected'):
             sync_stream(stream_name, stream_schema, sdk_client)
-
-    if SYNC_ERRORS:
-        msg  = "Errors occured during sync:\n\n"
-        for name, error in SYNC_ERRORS.items():
-            msg += "{}: {}\n\n".format(name, error)
-
-        raise Exception(msg) from error
 
 def get_report_definition_service(report_type, sdk_client):
     report_definition_service = sdk_client.GetService(
