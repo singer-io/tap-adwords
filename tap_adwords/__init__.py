@@ -25,7 +25,7 @@ from singer import transform
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
 PAGE_SIZE = 100
-VERSION = 'v201702'
+VERSION = 'v201705'
 
 REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
                         "boolean":  {'type': ["null", "boolean"]},
@@ -144,6 +144,8 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
         if start_date < cutoff:
             start_date = cutoff
 
+    LOGGER.info('Selected fields: %s', field_list)
+
     while start_date <= pendulum.now():
         sync_report_for_day(stream_name, stream_schema, sdk_client, start_date, field_list)
         start_date = start_date.add(days=1)
@@ -162,6 +164,7 @@ def get_xml_attribute_headers(stream_schema, description_headers):
     description_to_xml_attribute = {}
     for key, value in stream_schema['properties'].items():
         description_to_xml_attribute[value['description']] = key
+    description_to_xml_attribute['Ad policies'] = 'policy'
 
     xml_attribute_headers = [description_to_xml_attribute[header] for header in description_headers]
     return xml_attribute_headers
@@ -302,7 +305,11 @@ def do_sync(annotated_schema, sdk_client):
         stream_name = stream.get('stream')
         stream_schema = stream.get('schema')
         if stream_schema.get('selected'):
+            LOGGER.info('Syncing stream %s ...', stream_name)
             sync_stream(stream_name, stream_schema, sdk_client)
+
+        else:
+            LOGGER.info('Skipping stream %s.', stream_name)
 
 def get_report_definition_service(report_type, sdk_client):
     report_definition_service = sdk_client.GetService(
@@ -333,6 +340,18 @@ def create_schema_for_report(stream, sdk_client):
                                         'type': 'string',
                                         'field': "customer_id",
                                         'inclusion': 'automatic'}
+    if stream == 'AD_PERFORMANCE_REPORT':
+        # The data for this field is "image/jpeg" etc. However, the
+        # discovered schema from the report description service claims
+        # that it should be an integer. This is needed to correct that.
+        report_properties['imageMimeType'] = {
+            'description': 'Image Mime Type',
+            'behavior': 'ATTRIBUTE',
+            'type': ['null', 'string'],
+            'field': 'ImageCreativeMimeType',
+        }
+
+
     return {"type": "object",
             "is_report": 'true',
             "properties": report_properties,
@@ -364,7 +383,7 @@ def check_selected_fields(stream, field_list, sdk_client):
                         .format("\n\t".join(errors)))
 
 def do_discover_reports(sdk_client):
-    url = 'https://adwords.google.com/api/adwords/reportdownload/v201702/reportDefinition.xsd'
+    url = 'https://adwords.google.com/api/adwords/reportdownload/{}/reportDefinition.xsd'.format(VERSION)
     xsd = request_xsd(url)
     root = ET.fromstring(xsd)
     nodes = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
@@ -412,8 +431,10 @@ def create_sdk_client(customer_id):
 
 def do_sync_all_customers(customer_ids, properties):
     for customer_id in customer_ids:
+        LOGGER.info('Syncing customer ID %s ...', customer_id)
         sdk_client = create_sdk_client(customer_id)
         do_sync(properties, sdk_client)
+        LOGGER.info('Done syncing customer ID %s.', customer_id)
 
 def main():
     args = utils.parse_args(REQUIRED_CONFIG_KEYS)

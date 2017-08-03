@@ -32,14 +32,21 @@
             "inclusion": "available",
             "type": [
               "null",
-              "object"
+              "array"
             ],
-            "properties": {
-              "criterionTypeGroup": {
-                "type": ["null", "string"]
-              },
-              "targetAll": {
-                "type": ["null", "boolean"]
+            "items": {
+              "inclusion": "available",
+              "type": [
+                "null",
+                "object"
+              ],
+              "properties": {
+                "criterionTypeGroup": {
+                  "type": ["null", "string"]
+                },
+                "targetAll": {
+                  "type": ["null", "boolean"]
+                }
               }
             }
           },
