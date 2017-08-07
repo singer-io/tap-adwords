@@ -45,7 +45,7 @@ The AdWords Tap will use the developer token and OAuth properties from the previ
 
   **start_date** - an initial date for the Tap to extract AdWords data  
   **user_agent** - used in requests made to the AdWords API  
-  **customer_ids** - AdWords account IDs to replicate data from
+  **customer_ids** - A comma-separated list of AdWords account IDs to replicate data from
 
 The following is an example of the required configuration
 
