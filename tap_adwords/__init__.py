@@ -18,6 +18,8 @@ from googleads import oauth2
 
 import requests
 import singer
+import singer.metrics as metrics
+import singer.bookmarks as bookmarks
 
 from singer import utils
 from singer import transform
@@ -138,7 +140,9 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
 
     check_selected_fields(stream_name, field_list, sdk_client)
 
-    start_date = pendulum.parse(get_start(state_key_name(customer_id, stream_name)))
+    start_date = pendulum.parse(bookmarks.get_bookmark(STATE,
+                                                       state_key_name(customer_id, stream_name),
+                                                       'date'))
     if stream_name in REPORTS_WITH_90_DAY_MAX:
         cutoff = pendulum.utcnow().subtract(days=90)
         if start_date < cutoff:
@@ -201,11 +205,12 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
                           'max': start.strftime('%Y%m%d')}}}
 
     # Fetch the report as a csv string
-    result = report_downloader.DownloadReportAsString(
-        report, skip_report_header=True, skip_column_header=False,
-        skip_report_summary=True,
-        # Do not get data with 0 impressions, because some reports don't support that
-        include_zero_impressions=False)
+    with metrics.http_request_timer(stream_name):
+        result = report_downloader.DownloadReportAsString(
+            report, skip_report_header=True, skip_column_header=False,
+            skip_report_summary=True,
+            # Do not get data with 0 impressions, because some reports don't support that
+            include_zero_impressions=False)
 
     headers, values = parse_csv_string(result)
     i = 0
@@ -219,7 +224,10 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
 
         singer.write_record(stream_name, obj)
 
-    utils.update_state(STATE, state_key_name(customer_id, stream_name), start)
+    bookmarks.write_bookmark(STATE,
+                             state_key_name(customer_id, stream_name),
+                             'date',
+                             start.strftime(utils.DATETIME_FMT))
     singer.write_state(STATE)
     LOGGER.info("Done syncing %s records for the %s report for customer_id %s on %s",
                 i, stream_name, customer_id, start)
@@ -282,7 +290,8 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
 
     more_pages = True
     while more_pages:
-        page = service_caller.get(selector)
+        with metrics.http_request_timer(stream_name):
+            page = service_caller.get(selector)
         if 'entries' in page:
             for entry in page['entries']:
                 record = transform(suds_to_dict(entry), discovered_schema,
@@ -383,7 +392,7 @@ def check_selected_fields(stream, field_list, sdk_client):
                         .format("\n\t".join(errors)))
 
 def do_discover_reports(sdk_client):
-    url = 'https://adwords.google.com/api/adwords/reportdownload/{}/reportDefinition.xsd'.format(VERSION)
+    url = 'https://adwords.google.com/api/adwords/reportdownload/{}/reportDefinition.xsd'.format(VERSION) #pylint: disable=line-too-long
     xsd = request_xsd(url)
     root = ET.fromstring(xsd)
     nodes = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
