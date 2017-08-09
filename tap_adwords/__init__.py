@@ -213,24 +213,25 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
             include_zero_impressions=False)
 
     headers, values = parse_csv_string(result)
-    i = 0
-    for i, val in enumerate(values):
-        obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
-        obj['customer_id'] = customer_id
-        obj = transform(obj, stream_schema,
-                        integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING,
-                        pre_hook=transform_pre_hook)
-        obj['_sdc_id'] = i
+    with metrics.record_counter(stream_name) as counter:
+        for i, val in enumerate(values):
+            obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
+            obj['customer_id'] = customer_id
+            obj = transform(obj, stream_schema,
+                            integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING,
+                            pre_hook=transform_pre_hook)
+            obj['_sdc_id'] = i
 
-        singer.write_record(stream_name, obj)
+            singer.write_record(stream_name, obj)
+            counter.increment()
 
-    bookmarks.write_bookmark(STATE,
-                             state_key_name(customer_id, stream_name),
-                             'date',
-                             start.strftime(utils.DATETIME_FMT))
-    singer.write_state(STATE)
-    LOGGER.info("Done syncing %s records for the %s report for customer_id %s on %s",
-                i, stream_name, customer_id, start)
+        bookmarks.write_bookmark(STATE,
+                                 state_key_name(customer_id, stream_name),
+                                 'date',
+                                 start.strftime(utils.DATETIME_FMT))
+        singer.write_state(STATE)
+        LOGGER.info("Done syncing %s records for the %s report for customer_id %s on %s",
+                    counter.value, stream_name, customer_id, start)
 
 def suds_to_dict(obj):
     if not hasattr(obj, '__keylist__'):
@@ -288,19 +289,23 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
         },
     }
 
-    more_pages = True
-    while more_pages:
+    while True:
         with metrics.http_request_timer(stream_name):
+            LOGGER.info("Requesting %s records from offset %s", PAGE_SIZE, offset)
             page = service_caller.get(selector)
+            LOGGER.info("Total Expected Results: %s", page['totalNumEntries'])
         if 'entries' in page:
-            for entry in page['entries']:
-                record = transform(suds_to_dict(entry), discovered_schema,
-                                   integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING, # pylint: disable=line-too-long
-                                   pre_hook=transform_pre_hook)
-                singer.write_record(stream_name, record)
+            with metrics.record_counter(stream_name) as counter:
+                for entry in page['entries']:
+                    record = transform(suds_to_dict(entry), discovered_schema,
+                                       integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING, # pylint: disable=line-too-long
+                                       pre_hook=transform_pre_hook)
+                    singer.write_record(stream_name, record)
+                    counter.increment()
         offset += PAGE_SIZE
         selector['paging']['startIndex'] = str(offset)
-        more_pages = offset < int(page['totalNumEntries'])
+        if offset > int(page['totalNumEntries']):
+            break
     LOGGER.info("Done syncing %s for customer_id %s", stream_name, customer_id)
 
 def sync_stream(stream, annotated_schema, sdk_client):
