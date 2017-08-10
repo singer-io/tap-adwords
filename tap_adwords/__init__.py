@@ -86,11 +86,8 @@ def get_abs_path(path):
 def load_schema(entity):
     return utils.load_json(get_abs_path("schemas/{}.json".format(entity)))
 
-def get_start(key):
-    if key not in STATE:
-        STATE[key] = CONFIG['start_date']
-
-    return STATE[key]
+def get_start(start_date):
+    return start_date or CONFIG['start_date']
 
 def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
@@ -140,9 +137,11 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
 
     check_selected_fields(stream_name, field_list, sdk_client)
 
-    start_date = pendulum.parse(bookmarks.get_bookmark(STATE,
-                                                       state_key_name(customer_id, stream_name),
-                                                       'date'))
+    start_date = pendulum.parse(
+        get_start(
+            bookmarks.get_bookmark(STATE,
+                                   state_key_name(customer_id, stream_name),
+                                   'date')))
     if stream_name in REPORTS_WITH_90_DAY_MAX:
         cutoff = pendulum.utcnow().subtract(days=90)
         if start_date < cutoff:
