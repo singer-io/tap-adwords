@@ -364,6 +364,16 @@ def create_schema_for_report(stream, sdk_client):
             'field': 'ImageCreativeMimeType',
         }
 
+    if stream == 'CALL_METRICS_CALL_DETAILS_REPORT':
+        # The data for this field is something like `Jan 1, 2016 1:32:22
+        # PM` but the discovered schema is integer.
+        report_properties['startTime']['type'] = ['null', 'string']
+        report_properties['startTime']['format'] = 'date-time'
+        # The data for this field is something like `Jan 1, 2016 1:32:22
+        # PM` but the discovered schema is integer
+        report_properties['endTime']['type'] = ['null', 'string']
+        report_properties['endTime']['format'] = 'date-time'
+
 
     return {"type": "object",
             "is_report": 'true',
