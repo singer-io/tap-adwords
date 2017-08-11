@@ -292,7 +292,10 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
         with metrics.http_request_timer(stream_name):
             LOGGER.info("Requesting %s records from offset %s", PAGE_SIZE, offset)
             page = service_caller.get(selector)
-            LOGGER.info("Total Expected Results: %s", page['totalNumEntries'])
+            if page['totalNumEntries'] > 100000:
+                raise Exception(("Total results ({}) exceeds Google's API limits (100000). "
+                                 "http://googleadsdeveloper.blogspot.jp/2013/09/a-reminder-retrieving-large-result-sets.html").format( # pylint: disable=line-too-long
+                                     page['totalNumEntries']))
         if 'entries' in page:
             with metrics.record_counter(stream_name) as counter:
                 for entry in page['entries']:
