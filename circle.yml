@@ -8,4 +8,4 @@ dependencies:
 
 test:
   post:
-    - pylint tap_adwords -d missing-docstring,dangerous-default-value,logging-format-interpolation,broad-except
+    - pylint tap_adwords -d missing-docstring,dangerous-default-value,logging-format-interpolation,broad-except,fixme

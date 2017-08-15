@@ -356,8 +356,22 @@ def is_campaign_ids_selector_safe(sdk_client, campaign_ids, stream):
     LOGGER.info("Total entries %s", page['totalNumEntries'])
     return page['totalNumEntries'] < GOOGLE_MAX_RESULTSET_SIZE
 
+# Arbitrary window. Would be smarter to do a binary search rather than
+# build up from the bottom.
 CAMPAIGN_PARTITION_SIZE = 50
 
+# TODO The strategy here is naive. It assumes that the partition size will
+# be small enough to not contain 2 campaign ids that encompass a larger
+# than GOOGLE_MAX_RESULTSET_SIZE result set. The only reason we _must_
+# fail to retrieve ads or ad_groups is if a single campaign has more than
+# GOOGLE_MAX_RESULTSET_SIZE of them. That said, the implementation of a
+# smarter approach would be significantly more complicated, so until it
+# comes up in production we'll leave the naive approach.
+#
+# A less naive approach which would also reduce the total number of
+# requests for non-pathological cases would be to do a binary search of
+# the campaign id space. Splitting each campaign id set until each one has
+# a small enough result set would be better.
 def get_campaign_ids_safe_selectors(sdk_client,
                                     campaign_ids,
                                     stream):
@@ -471,6 +485,10 @@ def sync_generic_basic_endpoint(sdk_client, annotated_stream_schema, stream):
 def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
     campaign_ids = get_campaign_ids(sdk_client)
     if stream_name == 'ads' or stream_name == 'ad_groups':
+        if not campaign_ids:
+            LOGGER.info("No %s for customer %s", stream_name, sdk_client.client_customer_id)
+            return
+
         sync_campaign_ids_endpoint(sdk_client,
                                    campaign_ids,
                                    annotated_stream_schema,
