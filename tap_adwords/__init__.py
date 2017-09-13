@@ -542,16 +542,21 @@ def create_schema_for_report(stream, sdk_client):
                                                         'inclusion': "available"}
         report_properties[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
         if field['xmlAttributeName'] == 'day':
+            # Every report with this attribute errors with an empty
+            # 400 if it is not included in the field list.
             report_properties['day']['inclusion'] = 'automatic'
 
-    #NB> _sdc_customer_id is synthetic column we add as a convenience to every report
+    # _sdc_customer_id is synthetic column we add as a convenience to
+    # every report
     report_properties['_sdc_customer_id'] = {'description': 'Profile ID',
                                              'behavior': 'ATTRIBUTE',
                                              'type': 'string',
                                              'field': "customer_id",
                                              'inclusion': 'automatic'}
     if stream == 'GEO_PERFORMANCE_REPORT':
-        report_properties['customerID']['inclusion'] = 'automatic'
+        # Requests for this report that don't include countryTerritory
+        # fail with an empty 400. There's no evidence for this in the
+        # docs but it is what it is.
         report_properties['countryTerritory']['inclusion'] = 'automatic'
 
     if stream == 'AD_PERFORMANCE_REPORT':
