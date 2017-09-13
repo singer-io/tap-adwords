@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import ipdb
 import datetime
 import os
 import sys
@@ -125,13 +126,14 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
 
     stream_schema = create_schema_for_report(stream_name, sdk_client)
     xml_attribute_list = get_fields_to_sync(stream_schema, annotated_stream_schema)
-    primary_keys = ['customer_id', 'day', '_sdc_id']
+    primary_keys = ['_sdc_customer_id', 'day', '_sdc_id']
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
     write_schema(stream_name, stream_schema, primary_keys)
 
     field_list = []
     for field in xml_attribute_list:
-        if field != 'customer_id':
+        #NB> _sdc_customer_id is synthetic column we add as a convenience to every report
+        if field != '_sdc_customer_id':
             field_list.append(stream_schema['properties'][field]['field'])
 
     check_selected_fields(stream_name, field_list, sdk_client)
@@ -214,7 +216,7 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
     with metrics.record_counter(stream_name) as counter:
         for i, val in enumerate(values):
             obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
-            obj['customer_id'] = customer_id
+            obj['_sdc_customer_id'] = customer_id
             obj = transform(obj, stream_schema,
                             integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING,
                             pre_hook=transform_pre_hook)
@@ -532,6 +534,7 @@ def create_schema_for_report(stream, sdk_client):
     report_properties = {}
     LOGGER.info('Loading schema for %s', stream)
     fields = get_report_definition_service(stream, sdk_client)
+
     for field in fields:
         report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName'],
                                                         'behavior': field['fieldBehavior'],
@@ -541,11 +544,16 @@ def create_schema_for_report(stream, sdk_client):
         if field['xmlAttributeName'] == 'day':
             report_properties['day']['inclusion'] = 'automatic'
 
-    report_properties['customer_id'] = {'description': 'Profile ID',
-                                        'behavior': 'ATTRIBUTE',
-                                        'type': 'string',
-                                        'field': "customer_id",
-                                        'inclusion': 'automatic'}
+    #NB> _sdc_customer_id is synthetic column we add as a convenience to every report
+    report_properties['_sdc_customer_id'] = {'description': 'Profile ID',
+                                             'behavior': 'ATTRIBUTE',
+                                             'type': 'string',
+                                             'field': "customer_id",
+                                             'inclusion': 'automatic'}
+    if stream == 'GEO_PERFORMANCE_REPORT':
+        report_properties['customerID']['inclusion'] = 'automatic'
+        report_properties['countryTerritory']['inclusion'] = 'automatic'
+
     if stream == 'AD_PERFORMANCE_REPORT':
         # The data for this field is "image/jpeg" etc. However, the
         # discovered schema from the report description service claims
