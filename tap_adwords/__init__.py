@@ -23,7 +23,10 @@ import singer.metrics as metrics
 import singer.bookmarks as bookmarks
 
 from singer import utils
-from singer import transform
+
+from singer import (transform,
+                    UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING,
+                    Transformer)
 
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
@@ -42,14 +45,10 @@ REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
                         "DateTime": {"type": ["null", "string"],
                                      "format": "date-time"}}
 
-GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
-                                           'service_name': 'CampaignService'},
-                             "ad_groups": {'primary_keys': ["id"],
-                                           'service_name': 'AdGroupService'},
-                             "ads":       {'primary_keys': ["adGroupId"],
-                                           'service_name': 'AdGroupAdService'},
-                             "accounts":  {'primary_keys': ["customerId"],
-                                           'service_name': 'ManagedCustomerService'}}
+GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'service_name': 'CampaignService'},
+                             "ad_groups": {'service_name': 'AdGroupService'},
+                             "ads":       {'service_name': 'AdGroupAdService'},
+                             "accounts":  {'service_name': 'ManagedCustomerService'}}
 
 UNSUPPORTED_REPORTS = frozenset([
     'UNKNOWN',
@@ -94,8 +93,15 @@ def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
 
 def should_sync(discovered_schema, annotated_schema, field):
-    return annotated_schema['properties'][field].get('selected') \
-        or discovered_schema['properties'][field].get('inclusion') == 'automatic'
+    #NB> _sdc_customer_id is synthetic column we add as a convenience to every report
+    if field == '_sdc_customer_id':
+        return False
+    elif annotated_schema['properties'][field].get('selected'):
+        return True
+    elif  discovered_schema['properties'][field].get('inclusion') == 'automatic':
+        return True
+
+    return False
 
 def get_fields_to_sync(discovered_schema, annotated_schema):
     fields = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
@@ -126,15 +132,14 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
 
     stream_schema = create_schema_for_report(stream_name, sdk_client)
     xml_attribute_list = get_fields_to_sync(stream_schema, annotated_stream_schema)
-    primary_keys = ['_sdc_customer_id', 'day', '_sdc_id']
+
+    primary_keys = []
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
     write_schema(stream_name, stream_schema, primary_keys)
 
     field_list = []
     for field in xml_attribute_list:
-        #NB> _sdc_customer_id is synthetic column we add as a convenience to every report
-        if field != '_sdc_customer_id':
-            field_list.append(stream_schema['properties'][field]['field'])
+        field_list.append(stream_schema['properties'][field]['field'])
 
     check_selected_fields(stream_name, field_list, sdk_client)
 
@@ -217,10 +222,9 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
         for i, val in enumerate(values):
             obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
             obj['_sdc_customer_id'] = customer_id
-            obj = transform(obj, stream_schema,
-                            integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING,
-                            pre_hook=transform_pre_hook)
-            obj['_sdc_id'] = i
+            with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
+                bumble_bee.pre_hook = transform_pre_hook
+                obj = bumble_bee.transform(obj, stream_schema)
 
             singer.write_record(stream_name, obj)
             counter.increment()
@@ -414,7 +418,7 @@ def sync_campaign_ids_endpoint(sdk_client,
                                annotated_stream_schema,
                                stream):
     discovered_schema = load_schema(stream)
-    primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream]['primary_keys']
+    primary_keys = []
     write_schema(stream, discovered_schema, primary_keys)
 
     LOGGER.info("Syncing %s for customer %s", stream, sdk_client.client_customer_id)
@@ -442,11 +446,15 @@ def sync_campaign_ids_endpoint(sdk_client,
             if 'entries' in page:
                 with metrics.record_counter(stream) as counter:
                     for entry in page['entries']:
-                        record = transform(suds_to_dict(entry), discovered_schema,
-                                           integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING, # pylint: disable=line-too-long
-                                           pre_hook=transform_pre_hook)
-                        singer.write_record(stream, record)
-                        counter.increment()
+                        obj = suds_to_dict(entry)
+                        obj['_sdc_customer_id'] = sdk_client.client_customer_id
+                        with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
+                            bumble_bee.pre_hook = transform_pre_hook
+                            record = bumble_bee.transform(obj, discovered_schema)
+
+                            singer.write_record(stream, record)
+                            counter.increment()
+
             start_index += PAGE_SIZE
             if start_index > int(page['totalNumEntries']):
                 break
@@ -454,7 +462,7 @@ def sync_campaign_ids_endpoint(sdk_client,
 
 def sync_generic_basic_endpoint(sdk_client, annotated_stream_schema, stream):
     discovered_schema = load_schema(stream)
-    primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream]['primary_keys']
+    primary_keys = []
     write_schema(stream, discovered_schema, primary_keys)
 
     LOGGER.info("Syncing %s for customer %s", stream, sdk_client.client_customer_id)
@@ -474,11 +482,16 @@ def sync_generic_basic_endpoint(sdk_client, annotated_stream_schema, stream):
         if 'entries' in page:
             with metrics.record_counter(stream) as counter:
                 for entry in page['entries']:
-                    record = transform(suds_to_dict(entry), discovered_schema,
-                                       integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING, # pylint: disable=line-too-long
-                                       pre_hook=transform_pre_hook)
-                    singer.write_record(stream, record)
-                    counter.increment()
+                    obj = suds_to_dict(entry)
+                    obj['_sdc_customer_id'] = sdk_client.client_customer_id
+                    with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
+                        bumble_bee.pre_hook = transform_pre_hook
+                        record = bumble_bee.transform(obj, discovered_schema)
+
+                        singer.write_record(stream, record)
+                        counter.increment()
+
+                    # ipdb.set_trace()
         start_index += PAGE_SIZE
         if start_index > int(page['totalNumEntries']):
             break
