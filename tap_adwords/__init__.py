@@ -130,7 +130,7 @@ def request_xsd(url):
 def sync_report(stream_name, annotated_stream_schema, sdk_client):
     customer_id = sdk_client.client_customer_id
 
-    stream_schema = create_schema_for_report(stream_name, sdk_client)
+    stream_schema, _ = create_schema_for_report(stream_name, sdk_client)
     xml_attribute_list = get_fields_to_sync(stream_schema, annotated_stream_schema)
 
     primary_keys = []
@@ -545,10 +545,16 @@ def create_type_map(typ):
 
 def create_schema_for_report(stream, sdk_client):
     report_properties = {}
+    fieldExclusions = []
     LOGGER.info('Loading schema for %s', stream)
     fields = get_report_definition_service(stream, sdk_client)
 
     for field in fields:
+        if  hasattr(field, "exclusiveFields"):
+            breadcrumb = ['properties', str(field['xmlAttributeName'])]
+            mdata = {'fieldExclusions' : [['properties', str(x)] for x in  field['exclusiveFields']]}
+            fieldExclusions.append([breadcrumb, mdata])
+
         report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName'],
                                                         'behavior': field['fieldBehavior'],
                                                         'field': field['fieldName'],
@@ -593,11 +599,10 @@ def create_schema_for_report(stream, sdk_client):
         report_properties['endTime']['type'] = ['null', 'string']
         report_properties['endTime']['format'] = 'date-time'
 
-
-    return {"type": "object",
-            "is_report": 'true',
-            "properties": report_properties,
-            "inclusion": "available"}
+    return ({"type": "object",
+             "is_report": 'true',
+             "properties": report_properties,
+             "inclusion": "available"}, fieldExclusions)
 
 def check_selected_fields(stream, field_list, sdk_client):
     field_set = set(field_list)
@@ -634,9 +639,12 @@ def do_discover_reports(sdk_client):
     streams = []
     LOGGER.info("Starting report discovery")
     for stream_name in stream_names:
+        schema, fieldExclusions = create_schema_for_report(stream_name, sdk_client)
         streams.append({'stream': stream_name,
                         'tap_stream_id': stream_name,
-                        'schema': create_schema_for_report(stream_name, sdk_client)})
+                        'metadata' : fieldExclusions,
+                        'schema': schema})
+
     LOGGER.info("Report discovery complete")
     return streams
 
