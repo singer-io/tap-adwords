@@ -543,17 +543,29 @@ def create_type_map(typ):
         return REPORT_TYPE_MAPPINGS.get(typ)
     return {'type' : ['null', 'string']}
 
-def create_schema_for_report(stream, sdk_client):
-    report_properties = {}
+
+def create_field_exclusions_for_report(fields, field_name_lookup):
     fieldExclusions = []
-    LOGGER.info('Loading schema for %s', stream)
-    fields = get_report_definition_service(stream, sdk_client)
 
     for field in fields:
         if  hasattr(field, "exclusiveFields"):
             breadcrumb = ['properties', str(field['xmlAttributeName'])]
-            mdata = {'fieldExclusions' : [['properties', str(x)] for x in  field['exclusiveFields']]}
+            exclusive_fields = []
+
+            mdata = {'fieldExclusions' : [['properties', field_name_lookup[x]] for x in  field['exclusiveFields']]}
             fieldExclusions.append([breadcrumb, mdata])
+
+    return fieldExclusions
+
+
+def create_schema_for_report(stream, sdk_client):
+    report_properties = {}
+    field_name_lookup = {}
+    LOGGER.info('Loading schema for %s', stream)
+    fields = get_report_definition_service(stream, sdk_client)
+
+    for field in fields:
+        field_name_lookup[field['fieldName']] = str(field['xmlAttributeName'])
 
         report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName'],
                                                         'behavior': field['fieldBehavior'],
@@ -598,6 +610,8 @@ def create_schema_for_report(stream, sdk_client):
         # PM` but the discovered schema is integer
         report_properties['endTime']['type'] = ['null', 'string']
         report_properties['endTime']['format'] = 'date-time'
+
+    fieldExclusions  = create_field_exclusions_for_report(fields, field_name_lookup)
 
     return ({"type": "object",
              "is_report": 'true',
