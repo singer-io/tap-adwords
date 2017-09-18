@@ -544,19 +544,24 @@ def create_type_map(typ):
     return {'type' : ['null', 'string']}
 
 
-def create_field_exclusions_for_report(fields, field_name_lookup):
-    fieldExclusions = []
+def create_field_metadata_for_report(fields, field_name_lookup):
+    metadata = []
 
     for field in fields:
+        breadcrumb = ['properties', str(field['xmlAttributeName'])]
+        mdata = {}
         if  hasattr(field, "exclusiveFields"):
-            breadcrumb = ['properties', str(field['xmlAttributeName'])]
             exclusive_fields = []
 
-            mdata = {'fieldExclusions' : [['properties', field_name_lookup[x]] for x in  field['exclusiveFields']]}
-            fieldExclusions.append([breadcrumb, mdata])
+            mdata['fieldExclusions'] =  [['properties', field_name_lookup[x]] for x in field['exclusiveFields']]
+            metadata.append([breadcrumb, mdata])
 
-    return fieldExclusions
+            mdata['behavior'] = field['fieldBehavior']
 
+    #universal _sdc_customer_id column is an attribute
+    metadata.append([['properties', '_sdc_customer_id'], {'behavior' : 'ATTRIBUTE'}])
+
+    return metadata
 
 def create_schema_for_report(stream, sdk_client):
     report_properties = {}
@@ -566,12 +571,11 @@ def create_schema_for_report(stream, sdk_client):
 
     for field in fields:
         field_name_lookup[field['fieldName']] = str(field['xmlAttributeName'])
-
         report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName'],
-                                                        'behavior': field['fieldBehavior'],
                                                         'field': field['fieldName'],
                                                         'inclusion': "available"}
         report_properties[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
+
         if field['xmlAttributeName'] == 'day':
             # Every report with this attribute errors with an empty
             # 400 if it is not included in the field list.
@@ -580,7 +584,6 @@ def create_schema_for_report(stream, sdk_client):
     # _sdc_customer_id is synthetic column we add as a convenience to
     # every report
     report_properties['_sdc_customer_id'] = {'description': 'Profile ID',
-                                             'behavior': 'ATTRIBUTE',
                                              'type': 'string',
                                              'field': "customer_id",
                                              'inclusion': 'automatic'}
@@ -596,7 +599,6 @@ def create_schema_for_report(stream, sdk_client):
         # that it should be an integer. This is needed to correct that.
         report_properties['imageMimeType'] = {
             'description': 'Image Mime Type',
-            'behavior': 'ATTRIBUTE',
             'type': ['null', 'string'],
             'field': 'ImageCreativeMimeType',
         }
@@ -611,12 +613,13 @@ def create_schema_for_report(stream, sdk_client):
         report_properties['endTime']['type'] = ['null', 'string']
         report_properties['endTime']['format'] = 'date-time'
 
-    fieldExclusions  = create_field_exclusions_for_report(fields, field_name_lookup)
+    metadata  = create_field_metadata_for_report(fields, field_name_lookup)
 
     return ({"type": "object",
              "is_report": 'true',
              "properties": report_properties,
-             "inclusion": "available"}, fieldExclusions)
+             "inclusion": "available"},
+            metadata)
 
 def check_selected_fields(stream, field_list, sdk_client):
     field_set = set(field_list)
@@ -653,10 +656,10 @@ def do_discover_reports(sdk_client):
     streams = []
     LOGGER.info("Starting report discovery")
     for stream_name in stream_names:
-        schema, fieldExclusions = create_schema_for_report(stream_name, sdk_client)
+        schema, metadata = create_schema_for_report(stream_name, sdk_client)
         streams.append({'stream': stream_name,
                         'tap_stream_id': stream_name,
-                        'metadata' : fieldExclusions,
+                        'metadata' : metadata,
                         'schema': schema})
 
     LOGGER.info("Report discovery complete")
