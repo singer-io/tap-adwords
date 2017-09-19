@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import ipdb
 import datetime
 import os
 import sys
@@ -9,8 +8,8 @@ import csv
 import time
 import json
 import copy
-
 import xml.etree.ElementTree as ET
+
 from suds.client import Client
 import pendulum
 import googleads
@@ -89,6 +88,12 @@ def load_schema(entity):
 def get_start(start_date):
     return start_date or CONFIG['start_date']
 
+def get_end_date():
+    if CONFIG.get('end_date'):
+        return pendulum.parse(CONFIG.get('end_date'))
+
+    return pendulum.now()
+
 def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
 
@@ -155,7 +160,7 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
 
     LOGGER.info('Selected fields: %s', field_list)
 
-    while start_date <= pendulum.now():
+    while start_date <= get_end_date():
         sync_report_for_day(stream_name, stream_schema, sdk_client, start_date, field_list)
         start_date = start_date.add(days=1)
     LOGGER.info("Done syncing the %s report for customer_id %s", stream_name, customer_id)
@@ -196,7 +201,7 @@ def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
 
     return data
 
-def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list):
+def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list): # pylint: disable=too-many-locals
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
     customer_id = sdk_client.client_customer_id
     report = {
@@ -219,7 +224,7 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
 
     headers, values = parse_csv_string(result)
     with metrics.record_counter(stream_name) as counter:
-        for i, val in enumerate(values):
+        for _, val in enumerate(values):
             obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
             obj['_sdc_customer_id'] = customer_id
             with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
@@ -448,7 +453,7 @@ def sync_campaign_ids_endpoint(sdk_client,
                     for entry in page['entries']:
                         obj = suds_to_dict(entry)
                         obj['_sdc_customer_id'] = sdk_client.client_customer_id
-                        with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
+                        with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee: #pylint: disable=line-too-long
                             bumble_bee.pre_hook = transform_pre_hook
                             record = bumble_bee.transform(obj, discovered_schema)
 
@@ -484,14 +489,13 @@ def sync_generic_basic_endpoint(sdk_client, annotated_stream_schema, stream):
                 for entry in page['entries']:
                     obj = suds_to_dict(entry)
                     obj['_sdc_customer_id'] = sdk_client.client_customer_id
-                    with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
+                    with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee: #pylint: disable=line-too-long
                         bumble_bee.pre_hook = transform_pre_hook
                         record = bumble_bee.transform(obj, discovered_schema)
 
                         singer.write_record(stream, record)
                         counter.increment()
 
-                    # ipdb.set_trace()
         start_index += PAGE_SIZE
         if start_index > int(page['totalNumEntries']):
             break
