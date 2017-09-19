@@ -50,17 +50,55 @@ GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'service_name': 'CampaignService'},
                              "ads":       {'service_name': 'AdGroupAdService'},
                              "accounts":  {'service_name': 'ManagedCustomerService'}}
 
-UNSUPPORTED_REPORTS = frozenset([
-    'UNKNOWN',
-    # the following reports do not allow for querying by date range
-    'CAMPAIGN_NEGATIVE_KEYWORDS_PERFORMANCE_REPORT',
-    'CAMPAIGN_NEGATIVE_PLACEMENTS_PERFORMANCE_REPORT',
-    'SHARED_SET_REPORT',
-    'CAMPAIGN_SHARED_SET_REPORT',
-    'SHARED_SET_CRITERIA_REPORT',
-    'BUDGET_PERFORMANCE_REPORT',
-    'CAMPAIGN_NEGATIVE_LOCATIONS_REPORT',
-    'LABEL_REPORT',
+VERIFIED_REPORTS = frozenset([
+    # 'ACCOUNT_PERFORMANCE_REPORT',
+    'ADGROUP_PERFORMANCE_REPORT',
+    # 'AD_CUSTOMIZERS_FEED_ITEM_REPORT',
+    'AD_PERFORMANCE_REPORT',
+    # 'AGE_RANGE_PERFORMANCE_REPORT',
+    # 'AUDIENCE_PERFORMANCE_REPORT',
+    # 'AUTOMATIC_PLACEMENTS_PERFORMANCE_REPORT',
+    # 'BID_GOAL_PERFORMANCE_REPORT',
+    #'BUDGET_PERFORMANCE_REPORT',                       -- does NOT allow for querying by date range
+    # 'CALL_METRICS_CALL_DETAILS_REPORT',
+    #'CAMPAIGN_AD_SCHEDULE_TARGET_REPORT',
+    #'CAMPAIGN_CRITERIA_REPORT',
+    #'CAMPAIGN_GROUP_PERFORMANCE_REPORT',
+    #'CAMPAIGN_LOCATION_TARGET_REPORT',
+    #'CAMPAIGN_NEGATIVE_KEYWORDS_PERFORMANCE_REPORT',   -- does NOT allow for querying by date range
+    #'CAMPAIGN_NEGATIVE_LOCATIONS_REPORT',              -- does NOT allow for querying by date range
+    #'CAMPAIGN_NEGATIVE_PLACEMENTS_PERFORMANCE_REPORT', -- does NOT allow for querying by date range
+    'CAMPAIGN_PERFORMANCE_REPORT',
+    #'CAMPAIGN_SHARED_SET_REPORT',                      -- does NOT allow for querying by date range
+    'CLICK_PERFORMANCE_REPORT',
+    #'CREATIVE_CONVERSION_REPORT',
+    'CRITERIA_PERFORMANCE_REPORT',
+    #'DESTINATION_URL_REPORT',
+    #'DISPLAY_KEYWORD_PERFORMANCE_REPORT',
+    #'DISPLAY_TOPICS_PERFORMANCE_REPORT',
+    #'FINAL_URL_REPORT',
+    #'GENDER_PERFORMANCE_REPORT',
+    'GEO_PERFORMANCE_REPORT',
+    #'KEYWORDLESS_CATEGORY_REPORT',
+    #'KEYWORDLESS_QUERY_REPORT',
+    'KEYWORDS_PERFORMANCE_REPORT',
+    #'LABEL_REPORT',                                    -- does NOT allow for querying by date range,
+    #'PAID_ORGANIC_QUERY_REPORT',
+    #'PARENTAL_STATUS_PERFORMANCE_REPORT',
+    #'PLACEHOLDER_FEED_ITEM_REPORT',
+    #'PLACEHOLDER_REPORT',
+    #'PLACEMENT_PERFORMANCE_REPORT',
+    #'PRODUCT_PARTITION_REPORT',
+    'SEARCH_QUERY_PERFORMANCE_REPORT',
+    #'SHARED_SET_CRITERIA_REPORT',                      -- does NOT allow for querying by date range
+    #'SHARED_SET_REPORT',                               -- does NOT allow for querying by date range
+    #'SHARED_SET_REPORT',
+    #'SHOPPING_PERFORMANCE_REPORT',
+    #'TOP_CONTENT_PERFORMANCE_REPORT',
+    #'URL_PERFORMANCE_REPORT',
+    #'USER_AD_DISTANCE_REPORT',
+    #'VIDEO_PERFORMANCE_REPORT',
+    #'UNKNOWN'
 ])
 
 REPORTS_WITH_90_DAY_MAX = frozenset([
@@ -197,6 +235,8 @@ def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
     return data
 
 def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list):
+    LOGGER.info("%s from %s to %s",  stream_name, start.strftime('%Y%m%d'), start.strftime('%Y%m%d'))
+
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
     customer_id = sdk_client.client_customer_id
     report = {
@@ -652,7 +692,7 @@ def do_discover_reports(sdk_client):
     root = ET.fromstring(xsd)
     nodes = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
 
-    stream_names = [p.attrib['value'] for p in nodes if p.attrib['value'] not in UNSUPPORTED_REPORTS] #pylint: disable=line-too-long
+    stream_names = [p.attrib['value'] for p in nodes if p.attrib['value'] in VERIFIED_REPORTS] #pylint: disable=line-too-long
     streams = []
     LOGGER.info("Starting report discovery")
     for stream_name in stream_names:
