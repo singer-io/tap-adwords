@@ -594,11 +594,11 @@ def create_field_metadata_for_report(fields, field_name_lookup):
         mdata = {}
         if  hasattr(field, "exclusiveFields"):
             exclusive_fields = []
-
             mdata['fieldExclusions'] =  [['properties', field_name_lookup[x]] for x in field['exclusiveFields']]
-            metadata.append([breadcrumb, mdata])
 
-            mdata['behavior'] = field['fieldBehavior']
+        mdata['behavior'] = field['fieldBehavior']
+
+        metadata.append([breadcrumb, mdata])
 
     #universal _sdc_customer_id column is an attribute
     metadata.append([['properties', '_sdc_customer_id'], {'behavior' : 'ATTRIBUTE'}])
