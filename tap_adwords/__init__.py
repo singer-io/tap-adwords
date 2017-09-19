@@ -11,7 +11,6 @@ import copy
 import xml.etree.ElementTree as ET
 
 from suds.client import Client
-import pendulum
 import googleads
 from googleads import adwords
 from googleads import oauth2
@@ -20,12 +19,13 @@ import requests
 import singer
 import singer.metrics as metrics
 import singer.bookmarks as bookmarks
-
+import ipdb
 from singer import utils
 
 from singer import (transform,
                     UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING,
                     Transformer)
+from dateutil.relativedelta import *
 
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
@@ -124,13 +124,15 @@ def load_schema(entity):
     return utils.load_json(get_abs_path("schemas/{}.json".format(entity)))
 
 def get_start(start_date):
-    return start_date or CONFIG['start_date']
+    bk_start_date = utils.strptime_with_tz(start_date or CONFIG['start_date'])
+    conversion_window_days = int(CONFIG.get('conversion_window_days', '-30'))
+    return bk_start_date+relativedelta(days=conversion_window_days)
 
 def get_end_date():
     if CONFIG.get('end_date'):
-        return pendulum.parse(CONFIG.get('end_date'))
+        return utils.strptime_with_tz(CONFIG.get('end_date'))
 
-    return pendulum.now()
+    return utils.strptime_with_tz(utils.now())
 
 def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
@@ -186,13 +188,11 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
 
     check_selected_fields(stream_name, field_list, sdk_client)
 
-    start_date = pendulum.parse(
-        get_start(
-            bookmarks.get_bookmark(STATE,
-                                   state_key_name(customer_id, stream_name),
-                                   'date')))
+    start_date = get_start(bookmarks.get_bookmark(STATE,
+                                                  state_key_name(customer_id, stream_name),
+                                                  'date'))
     if stream_name in REPORTS_WITH_90_DAY_MAX:
-        cutoff = pendulum.utcnow().subtract(days=90)
+        cutoff = utils.now()+relativedelta(days=-90)
         if start_date < cutoff:
             start_date = cutoff
 
@@ -200,7 +200,7 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
 
     while start_date <= get_end_date():
         sync_report_for_day(stream_name, stream_schema, sdk_client, start_date, field_list)
-        start_date = start_date.add(days=1)
+        start_date = start_date+relativedelta(days=1)
     LOGGER.info("Done syncing the %s report for customer_id %s", stream_name, customer_id)
 
 def parse_csv_string(csv_string):
