@@ -16,16 +16,16 @@ from googleads import adwords
 from googleads import oauth2
 
 import requests
-import singer
 import singer.metrics as metrics
 import singer.bookmarks as bookmarks
 import ipdb
+import singer
 from singer import utils
-
 from singer import (transform,
                     UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING,
                     Transformer)
-from dateutil.relativedelta import *
+from dateutil.relativedelta import (relativedelta)
+
 
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
@@ -53,7 +53,7 @@ GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
                              "accounts":  {'primary_keys': ["customerId"],
                                            'service_name': 'ManagedCustomerService'}}
 
-REPORT_RUN_DATETIME=utils.strftime(utils.now())
+REPORT_RUN_DATETIME = utils.strftime(utils.now())
 
 VERIFIED_REPORTS = frozenset([
     # 'ACCOUNT_PERFORMANCE_REPORT',
@@ -628,8 +628,7 @@ def create_field_metadata_for_report(fields, field_name_lookup):
         breadcrumb = ['properties', str(field['xmlAttributeName'])]
         mdata = {}
         if  hasattr(field, "exclusiveFields"):
-            exclusive_fields = []
-            mdata['fieldExclusions'] =  [['properties', field_name_lookup[x]] for x in field['exclusiveFields']]
+            mdata['fieldExclusions'] = [['properties', field_name_lookup[x]] for x in field['exclusiveFields']]
 
         mdata['behavior'] = field['fieldBehavior']
 
@@ -683,7 +682,7 @@ def create_schema_for_report(stream, sdk_client):
         report_properties['endTime']['type'] = ['null', 'string']
         report_properties['endTime']['format'] = 'date-time'
 
-    metadata  = create_field_metadata_for_report(fields, field_name_lookup)
+    metadata = create_field_metadata_for_report(fields, field_name_lookup)
 
     return ({"type": "object",
              "is_report": 'true',
