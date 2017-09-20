@@ -44,10 +44,14 @@ REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
                         "DateTime": {"type": ["null", "string"],
                                      "format": "date-time"}}
 
-GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'service_name': 'CampaignService'},
-                             "ad_groups": {'service_name': 'AdGroupService'},
-                             "ads":       {'service_name': 'AdGroupAdService'},
-                             "accounts":  {'service_name': 'ManagedCustomerService'}}
+GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
+                                           'service_name': 'CampaignService'},
+                             "ad_groups": {'primary_keys': ["id"],
+                                           'service_name': 'AdGroupService'},
+                             "ads":       {'primary_keys': ["adGroupId"],
+                                           'service_name': 'AdGroupAdService'},
+                             "accounts":  {'primary_keys': ["customerId"],
+                                           'service_name': 'ManagedCustomerService'}}
 
 REPORT_RUN_DATETIME=utils.strftime(utils.now())
 
@@ -489,7 +493,7 @@ def sync_campaign_ids_endpoint(sdk_client,
         'type': 'string',
         'field': "customer_id"
     }
-    primary_keys = []
+    primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream]['primary_keys']
     write_schema(stream, discovered_schema, primary_keys)
 
     LOGGER.info("Syncing %s for customer %s", stream, sdk_client.client_customer_id)
@@ -537,7 +541,7 @@ def sync_generic_basic_endpoint(sdk_client, annotated_stream_schema, stream):
         'type': 'string',
         'field': "customer_id"
     }
-    primary_keys = []
+    primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream]['primary_keys']
     write_schema(stream, discovered_schema, primary_keys)
 
     LOGGER.info("Syncing %s for customer %s", stream, sdk_client.client_customer_id)
