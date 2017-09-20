@@ -123,10 +123,16 @@ def get_abs_path(path):
 def load_schema(entity):
     return utils.load_json(get_abs_path("schemas/{}.json".format(entity)))
 
-def get_start(start_date):
-    bk_start_date = utils.strptime_with_tz(start_date or CONFIG['start_date'])
+def get_start_for_stream(customer_id, stream_name):
+    bk_value = bookmarks.get_bookmark(STATE,
+                                      state_key_name(customer_id, stream_name),
+                                      'date')
+    bk_start_date = utils.strptime_with_tz(bk_value or CONFIG['start_date'])
+    return bk_start_date
+
+def apply_conversion_window(start_date):
     conversion_window_days = int(CONFIG.get('conversion_window_days', '-30'))
-    return bk_start_date+relativedelta(days=conversion_window_days)
+    return start_date+relativedelta(days=conversion_window_days)
 
 def get_end_date():
     if CONFIG.get('end_date'):
@@ -188,9 +194,7 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
 
     check_selected_fields(stream_name, field_list, sdk_client)
 
-    start_date = get_start(bookmarks.get_bookmark(STATE,
-                                                  state_key_name(customer_id, stream_name),
-                                                  'date'))
+    start_date = apply_conversion_window(get_start_for_stream(customer_id, stream_name))
     if stream_name in REPORTS_WITH_90_DAY_MAX:
         cutoff = utils.now()+relativedelta(days=-90)
         if start_date < cutoff:
@@ -272,11 +276,16 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
             singer.write_record(stream_name, obj)
             counter.increment()
 
-        bookmarks.write_bookmark(STATE,
-                                 state_key_name(customer_id, stream_name),
-                                 'date',
-                                 start.strftime(utils.DATETIME_FMT))
-        singer.write_state(STATE)
+        if start > get_start_for_stream(sdk_client.client_customer_id, stream_name):
+            LOGGER.info('updating bookmark: %s > %s', start, get_start_for_stream(sdk_client.client_customer_id, stream_name))
+            bookmarks.write_bookmark(STATE,
+                                     state_key_name(sdk_client.client_customer_id, stream_name),
+                                     'date',
+                                     start.strftime(utils.DATETIME_FMT))
+            singer.write_state(STATE)
+        else:
+            LOGGER.info('not updating bookmark: %s <= %s', start, get_start_for_stream(sdk_client.client_customer_id, stream_name))
+
         LOGGER.info("Done syncing %s records for the %s report for customer_id %s on %s",
                     counter.value, stream_name, customer_id, start)
 
