@@ -8,21 +8,23 @@ import csv
 import time
 import json
 import copy
-
 import xml.etree.ElementTree as ET
+
 from suds.client import Client
-import pendulum
 import googleads
 from googleads import adwords
 from googleads import oauth2
 
 import requests
-import singer
 import singer.metrics as metrics
 import singer.bookmarks as bookmarks
-
+import singer
 from singer import utils
-from singer import transform
+from singer import (transform,
+                    UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING,
+                    Transformer)
+from dateutil.relativedelta import (relativedelta)
+
 
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
@@ -50,17 +52,57 @@ GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
                              "accounts":  {'primary_keys': ["customerId"],
                                            'service_name': 'ManagedCustomerService'}}
 
-UNSUPPORTED_REPORTS = frozenset([
-    'UNKNOWN',
-    # the following reports do not allow for querying by date range
-    'CAMPAIGN_NEGATIVE_KEYWORDS_PERFORMANCE_REPORT',
-    'CAMPAIGN_NEGATIVE_PLACEMENTS_PERFORMANCE_REPORT',
-    'SHARED_SET_REPORT',
-    'CAMPAIGN_SHARED_SET_REPORT',
-    'SHARED_SET_CRITERIA_REPORT',
-    'BUDGET_PERFORMANCE_REPORT',
-    'CAMPAIGN_NEGATIVE_LOCATIONS_REPORT',
-    'LABEL_REPORT',
+REPORT_RUN_DATETIME = utils.strftime(utils.now())
+
+VERIFIED_REPORTS = frozenset([
+    # 'ACCOUNT_PERFORMANCE_REPORT',
+    'ADGROUP_PERFORMANCE_REPORT',
+    # 'AD_CUSTOMIZERS_FEED_ITEM_REPORT',
+    'AD_PERFORMANCE_REPORT',
+    # 'AGE_RANGE_PERFORMANCE_REPORT',
+    # 'AUDIENCE_PERFORMANCE_REPORT',
+    # 'AUTOMATIC_PLACEMENTS_PERFORMANCE_REPORT',
+    # 'BID_GOAL_PERFORMANCE_REPORT',
+    #'BUDGET_PERFORMANCE_REPORT',                       -- does NOT allow for querying by date range
+    # 'CALL_METRICS_CALL_DETAILS_REPORT',
+    #'CAMPAIGN_AD_SCHEDULE_TARGET_REPORT',
+    #'CAMPAIGN_CRITERIA_REPORT',
+    #'CAMPAIGN_GROUP_PERFORMANCE_REPORT',
+    #'CAMPAIGN_LOCATION_TARGET_REPORT',
+    #'CAMPAIGN_NEGATIVE_KEYWORDS_PERFORMANCE_REPORT',   -- does NOT allow for querying by date range
+    #'CAMPAIGN_NEGATIVE_LOCATIONS_REPORT',              -- does NOT allow for querying by date range
+    #'CAMPAIGN_NEGATIVE_PLACEMENTS_PERFORMANCE_REPORT', -- does NOT allow for querying by date range
+    'CAMPAIGN_PERFORMANCE_REPORT',
+    #'CAMPAIGN_SHARED_SET_REPORT',                      -- does NOT allow for querying by date range
+    'CLICK_PERFORMANCE_REPORT',
+    #'CREATIVE_CONVERSION_REPORT',
+    'CRITERIA_PERFORMANCE_REPORT',
+    #'DESTINATION_URL_REPORT',
+    #'DISPLAY_KEYWORD_PERFORMANCE_REPORT',
+    #'DISPLAY_TOPICS_PERFORMANCE_REPORT',
+    #'FINAL_URL_REPORT',
+    #'GENDER_PERFORMANCE_REPORT',
+    'GEO_PERFORMANCE_REPORT',
+    #'KEYWORDLESS_CATEGORY_REPORT',
+    #'KEYWORDLESS_QUERY_REPORT',
+    'KEYWORDS_PERFORMANCE_REPORT',
+    #'LABEL_REPORT',                                    -- does NOT allow for querying by date range,
+    #'PAID_ORGANIC_QUERY_REPORT',
+    #'PARENTAL_STATUS_PERFORMANCE_REPORT',
+    #'PLACEHOLDER_FEED_ITEM_REPORT',
+    #'PLACEHOLDER_REPORT',
+    #'PLACEMENT_PERFORMANCE_REPORT',
+    #'PRODUCT_PARTITION_REPORT',
+    'SEARCH_QUERY_PERFORMANCE_REPORT',
+    #'SHARED_SET_CRITERIA_REPORT',                      -- does NOT allow for querying by date range
+    #'SHARED_SET_REPORT',                               -- does NOT allow for querying by date range
+    #'SHARED_SET_REPORT',
+    #'SHOPPING_PERFORMANCE_REPORT',
+    #'TOP_CONTENT_PERFORMANCE_REPORT',
+    #'URL_PERFORMANCE_REPORT',
+    #'USER_AD_DISTANCE_REPORT',
+    #'VIDEO_PERFORMANCE_REPORT',
+    #'UNKNOWN'
 ])
 
 REPORTS_WITH_90_DAY_MAX = frozenset([
@@ -86,15 +128,33 @@ def get_abs_path(path):
 def load_schema(entity):
     return utils.load_json(get_abs_path("schemas/{}.json".format(entity)))
 
-def get_start(start_date):
-    return start_date or CONFIG['start_date']
+def get_start_for_stream(customer_id, stream_name):
+    bk_value = bookmarks.get_bookmark(STATE,
+                                      state_key_name(customer_id, stream_name),
+                                      'date')
+    bk_start_date = utils.strptime_with_tz(bk_value or CONFIG['start_date'])
+    return bk_start_date
+
+def apply_conversion_window(start_date):
+    conversion_window_days = int(CONFIG.get('conversion_window_days', '-30'))
+    return start_date+relativedelta(days=conversion_window_days)
+
+def get_end_date():
+    if CONFIG.get('end_date'):
+        return utils.strptime_with_tz(CONFIG.get('end_date'))
+
+    return utils.strptime_with_tz(utils.now())
 
 def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
 
 def should_sync(discovered_schema, annotated_schema, field):
-    return annotated_schema['properties'][field].get('selected') \
-        or discovered_schema['properties'][field].get('inclusion') == 'automatic'
+    if annotated_schema['properties'][field].get('selected'):
+        return True
+    elif  discovered_schema['properties'][field].get('inclusion') == 'automatic':
+        return True
+
+    return False
 
 def get_fields_to_sync(discovered_schema, annotated_schema):
     fields = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
@@ -120,37 +180,45 @@ def request_xsd(url):
 
     return resp.text
 
+def add_synthetic_keys_to_stream_schema(stream_schema):
+    stream_schema['properties']['_sdc_customer_id'] = {'description': 'Profile ID',
+                                                       'type': 'string',
+                                                       'field': "customer_id"}
+    stream_schema['properties']['_sdc_report_datetime'] = {'description': 'DateTime of Report Run',
+                                                           'type': 'string',
+                                                           'format' : 'date-time'}
+    return stream_schema
+
 def sync_report(stream_name, annotated_stream_schema, sdk_client):
     customer_id = sdk_client.client_customer_id
 
-    stream_schema = create_schema_for_report(stream_name, sdk_client)
+    stream_schema, _ = create_schema_for_report(stream_name, sdk_client)
+    stream_schema = add_synthetic_keys_to_stream_schema(stream_schema)
+
     xml_attribute_list = get_fields_to_sync(stream_schema, annotated_stream_schema)
-    primary_keys = ['customer_id', 'day', '_sdc_id']
+
+    primary_keys = []
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
+
     write_schema(stream_name, stream_schema, primary_keys)
 
     field_list = []
     for field in xml_attribute_list:
-        if field != 'customer_id':
-            field_list.append(stream_schema['properties'][field]['field'])
+        field_list.append(stream_schema['properties'][field]['field'])
 
     check_selected_fields(stream_name, field_list, sdk_client)
 
-    start_date = pendulum.parse(
-        get_start(
-            bookmarks.get_bookmark(STATE,
-                                   state_key_name(customer_id, stream_name),
-                                   'date')))
+    start_date = apply_conversion_window(get_start_for_stream(customer_id, stream_name))
     if stream_name in REPORTS_WITH_90_DAY_MAX:
-        cutoff = pendulum.utcnow().subtract(days=90)
+        cutoff = utils.now()+relativedelta(days=-90)
         if start_date < cutoff:
             start_date = cutoff
 
     LOGGER.info('Selected fields: %s', field_list)
 
-    while start_date <= pendulum.now():
+    while start_date <= get_end_date():
         sync_report_for_day(stream_name, stream_schema, sdk_client, start_date, field_list)
-        start_date = start_date.add(days=1)
+        start_date = start_date+relativedelta(days=1)
     LOGGER.info("Done syncing the %s report for customer_id %s", stream_name, customer_id)
 
 def parse_csv_string(csv_string):
@@ -189,7 +257,7 @@ def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
 
     return data
 
-def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list):
+def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list): # pylint: disable=too-many-locals
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
     customer_id = sdk_client.client_customer_id
     report = {
@@ -212,22 +280,27 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
 
     headers, values = parse_csv_string(result)
     with metrics.record_counter(stream_name) as counter:
-        for i, val in enumerate(values):
+        for _, val in enumerate(values):
             obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
-            obj['customer_id'] = customer_id
-            obj = transform(obj, stream_schema,
-                            integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING,
-                            pre_hook=transform_pre_hook)
-            obj['_sdc_id'] = i
+            obj['_sdc_customer_id'] = customer_id
+            obj['_sdc_report_datetime'] = REPORT_RUN_DATETIME
+            with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
+                bumble_bee.pre_hook = transform_pre_hook
+                obj = bumble_bee.transform(obj, stream_schema)
 
             singer.write_record(stream_name, obj)
             counter.increment()
 
-        bookmarks.write_bookmark(STATE,
-                                 state_key_name(customer_id, stream_name),
-                                 'date',
-                                 start.strftime(utils.DATETIME_FMT))
-        singer.write_state(STATE)
+        if start > get_start_for_stream(sdk_client.client_customer_id, stream_name):
+            LOGGER.info('updating bookmark: %s > %s', start, get_start_for_stream(sdk_client.client_customer_id, stream_name))
+            bookmarks.write_bookmark(STATE,
+                                     state_key_name(sdk_client.client_customer_id, stream_name),
+                                     'date',
+                                     start.strftime(utils.DATETIME_FMT))
+            singer.write_state(STATE)
+        else:
+            LOGGER.info('not updating bookmark: %s <= %s', start, get_start_for_stream(sdk_client.client_customer_id, stream_name))
+
         LOGGER.info("Done syncing %s records for the %s report for customer_id %s on %s",
                     counter.value, stream_name, customer_id, start)
 
@@ -399,6 +472,7 @@ def get_campaign_ids_safe_selectors(sdk_client,
     return safe_selectors
 
 def get_field_list(discovered_schema, annotated_stream_schema, stream):
+    #NB> add synthetic keys
     field_list = get_fields_to_sync(discovered_schema, annotated_stream_schema)
     LOGGER.info("Request fields: %s", field_list)
     field_list = filter_fields_by_stream_name(stream, field_list)
@@ -412,12 +486,16 @@ def sync_campaign_ids_endpoint(sdk_client,
                                annotated_stream_schema,
                                stream):
     discovered_schema = load_schema(stream)
+    field_list = get_field_list(discovered_schema, annotated_stream_schema, stream)
+    discovered_schema['properties']['_sdc_customer_id'] = {
+        'description': 'Profile ID',
+        'type': 'string',
+        'field': "customer_id"
+    }
     primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream]['primary_keys']
     write_schema(stream, discovered_schema, primary_keys)
 
     LOGGER.info("Syncing %s for customer %s", stream, sdk_client.client_customer_id)
-
-    field_list = get_field_list(discovered_schema, annotated_stream_schema, stream)
 
     for safe_selector in get_campaign_ids_safe_selectors(
             sdk_client,
@@ -440,11 +518,15 @@ def sync_campaign_ids_endpoint(sdk_client,
             if 'entries' in page:
                 with metrics.record_counter(stream) as counter:
                     for entry in page['entries']:
-                        record = transform(suds_to_dict(entry), discovered_schema,
-                                           integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING, # pylint: disable=line-too-long
-                                           pre_hook=transform_pre_hook)
-                        singer.write_record(stream, record)
-                        counter.increment()
+                        obj = suds_to_dict(entry)
+                        obj['_sdc_customer_id'] = sdk_client.client_customer_id
+                        with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee: #pylint: disable=line-too-long
+                            bumble_bee.pre_hook = transform_pre_hook
+                            record = bumble_bee.transform(obj, discovered_schema)
+
+                            singer.write_record(stream, record)
+                            counter.increment()
+
             start_index += PAGE_SIZE
             if start_index > int(page['totalNumEntries']):
                 break
@@ -452,12 +534,17 @@ def sync_campaign_ids_endpoint(sdk_client,
 
 def sync_generic_basic_endpoint(sdk_client, annotated_stream_schema, stream):
     discovered_schema = load_schema(stream)
+    field_list = get_field_list(discovered_schema, annotated_stream_schema, stream)
+    discovered_schema['properties']['_sdc_customer_id'] = {
+        'description': 'Profile ID',
+        'type': 'string',
+        'field': "customer_id"
+    }
     primary_keys = GENERIC_ENDPOINT_MAPPINGS[stream]['primary_keys']
     write_schema(stream, discovered_schema, primary_keys)
 
     LOGGER.info("Syncing %s for customer %s", stream, sdk_client.client_customer_id)
 
-    field_list = get_field_list(discovered_schema, annotated_stream_schema, stream)
 
     start_index = 0
     while True:
@@ -472,11 +559,15 @@ def sync_generic_basic_endpoint(sdk_client, annotated_stream_schema, stream):
         if 'entries' in page:
             with metrics.record_counter(stream) as counter:
                 for entry in page['entries']:
-                    record = transform(suds_to_dict(entry), discovered_schema,
-                                       integer_datetime_fmt=singer.UNIX_SECONDS_INTEGER_DATETIME_PARSING, # pylint: disable=line-too-long
-                                       pre_hook=transform_pre_hook)
-                    singer.write_record(stream, record)
-                    counter.increment()
+                    obj = suds_to_dict(entry)
+                    obj['_sdc_customer_id'] = sdk_client.client_customer_id
+                    with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee: #pylint: disable=line-too-long
+                        bumble_bee.pre_hook = transform_pre_hook
+                        record = bumble_bee.transform(obj, discovered_schema)
+
+                        singer.write_record(stream, record)
+                        counter.increment()
+
         start_index += PAGE_SIZE
         if start_index > int(page['totalNumEntries']):
             break
@@ -528,31 +619,54 @@ def create_type_map(typ):
         return REPORT_TYPE_MAPPINGS.get(typ)
     return {'type' : ['null', 'string']}
 
+
+def create_field_metadata_for_report(fields, field_name_lookup):
+    metadata = []
+
+    for field in fields:
+        breadcrumb = ['properties', str(field['xmlAttributeName'])]
+        mdata = {}
+        if  hasattr(field, "exclusiveFields"):
+            mdata['fieldExclusions'] = [['properties', field_name_lookup[x]] for x in field['exclusiveFields']]
+
+        mdata['behavior'] = field['fieldBehavior']
+
+        metadata.append([breadcrumb, mdata])
+
+    return metadata
+
 def create_schema_for_report(stream, sdk_client):
     report_properties = {}
+    field_name_lookup = {}
     LOGGER.info('Loading schema for %s', stream)
     fields = get_report_definition_service(stream, sdk_client)
+
     for field in fields:
+        field_name_lookup[field['fieldName']] = str(field['xmlAttributeName'])
         report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName'],
-                                                        'behavior': field['fieldBehavior'],
                                                         'field': field['fieldName'],
                                                         'inclusion': "available"}
         report_properties[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
+
         if field['xmlAttributeName'] == 'day':
+            # Every report with this attribute errors with an empty
+            # 400 if it is not included in the field list.
             report_properties['day']['inclusion'] = 'automatic'
 
-    report_properties['customer_id'] = {'description': 'Profile ID',
-                                        'behavior': 'ATTRIBUTE',
-                                        'type': 'string',
-                                        'field': "customer_id",
-                                        'inclusion': 'automatic'}
+
+
+    if stream == 'GEO_PERFORMANCE_REPORT':
+        # Requests for this report that don't include countryTerritory
+        # fail with an empty 400. There's no evidence for this in the
+        # docs but it is what it is.
+        report_properties['countryTerritory']['inclusion'] = 'automatic'
+
     if stream == 'AD_PERFORMANCE_REPORT':
         # The data for this field is "image/jpeg" etc. However, the
         # discovered schema from the report description service claims
         # that it should be an integer. This is needed to correct that.
         report_properties['imageMimeType'] = {
             'description': 'Image Mime Type',
-            'behavior': 'ATTRIBUTE',
             'type': ['null', 'string'],
             'field': 'ImageCreativeMimeType',
         }
@@ -567,11 +681,13 @@ def create_schema_for_report(stream, sdk_client):
         report_properties['endTime']['type'] = ['null', 'string']
         report_properties['endTime']['format'] = 'date-time'
 
+    metadata = create_field_metadata_for_report(fields, field_name_lookup)
 
-    return {"type": "object",
-            "is_report": 'true',
-            "properties": report_properties,
-            "inclusion": "available"}
+    return ({"type": "object",
+             "is_report": 'true',
+             "properties": report_properties,
+             "inclusion": "available"},
+            metadata)
 
 def check_selected_fields(stream, field_list, sdk_client):
     field_set = set(field_list)
@@ -604,13 +720,16 @@ def do_discover_reports(sdk_client):
     root = ET.fromstring(xsd)
     nodes = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
 
-    stream_names = [p.attrib['value'] for p in nodes if p.attrib['value'] not in UNSUPPORTED_REPORTS] #pylint: disable=line-too-long
+    stream_names = [p.attrib['value'] for p in nodes if p.attrib['value'] in VERIFIED_REPORTS] #pylint: disable=line-too-long
     streams = []
     LOGGER.info("Starting report discovery")
     for stream_name in stream_names:
+        schema, metadata = create_schema_for_report(stream_name, sdk_client)
         streams.append({'stream': stream_name,
                         'tap_stream_id': stream_name,
-                        'schema': create_schema_for_report(stream_name, sdk_client)})
+                        'metadata' : metadata,
+                        'schema': schema})
+
     LOGGER.info("Report discovery complete")
     return streams
 
