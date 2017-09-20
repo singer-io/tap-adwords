@@ -18,7 +18,6 @@ from googleads import oauth2
 import requests
 import singer.metrics as metrics
 import singer.bookmarks as bookmarks
-import ipdb
 import singer
 from singer import utils
 from singer import (transform,
