@@ -49,6 +49,8 @@ GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'service_name': 'CampaignService'},
                              "ads":       {'service_name': 'AdGroupAdService'},
                              "accounts":  {'service_name': 'ManagedCustomerService'}}
 
+REPORT_RUN_DATETIME=utils.strftime(utils.now())
+
 VERIFIED_REPORTS = frozenset([
     # 'ACCOUNT_PERFORMANCE_REPORT',
     'ADGROUP_PERFORMANCE_REPORT',
@@ -144,10 +146,7 @@ def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
 
 def should_sync(discovered_schema, annotated_schema, field):
-    #NB> _sdc_customer_id is synthetic column we add as a convenience to every report
-    if field == '_sdc_customer_id':
-        return False
-    elif annotated_schema['properties'][field].get('selected'):
+    if annotated_schema['properties'][field].get('selected'):
         return True
     elif  discovered_schema['properties'][field].get('inclusion') == 'automatic':
         return True
@@ -178,14 +177,26 @@ def request_xsd(url):
 
     return resp.text
 
+def add_synthetic_keys_to_stream_schema(stream_schema):
+    stream_schema['properties']['_sdc_customer_id'] = {'description': 'Profile ID',
+                                                       'type': 'string',
+                                                       'field': "customer_id"}
+    stream_schema['properties']['_sdc_report_datetime'] = {'description': 'DateTime of Report Run',
+                                                           'type': 'string',
+                                                           'format' : 'date-time'}
+    return stream_schema
+
 def sync_report(stream_name, annotated_stream_schema, sdk_client):
     customer_id = sdk_client.client_customer_id
 
     stream_schema, _ = create_schema_for_report(stream_name, sdk_client)
+    stream_schema = add_synthetic_keys_to_stream_schema(stream_schema)
+
     xml_attribute_list = get_fields_to_sync(stream_schema, annotated_stream_schema)
 
     primary_keys = []
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
+
     write_schema(stream_name, stream_schema, primary_keys)
 
     field_list = []
@@ -269,6 +280,7 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
         for _, val in enumerate(values):
             obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
             obj['_sdc_customer_id'] = customer_id
+            obj['_sdc_report_datetime'] = REPORT_RUN_DATETIME
             with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
                 bumble_bee.pre_hook = transform_pre_hook
                 obj = bumble_bee.transform(obj, stream_schema)
@@ -457,6 +469,7 @@ def get_campaign_ids_safe_selectors(sdk_client,
     return safe_selectors
 
 def get_field_list(discovered_schema, annotated_stream_schema, stream):
+    #NB> add synthetic keys
     field_list = get_fields_to_sync(discovered_schema, annotated_stream_schema)
     LOGGER.info("Request fields: %s", field_list)
     field_list = filter_fields_by_stream_name(stream, field_list)
@@ -470,12 +483,16 @@ def sync_campaign_ids_endpoint(sdk_client,
                                annotated_stream_schema,
                                stream):
     discovered_schema = load_schema(stream)
+    field_list = get_field_list(discovered_schema, annotated_stream_schema, stream)
+    discovered_schema['properties']['_sdc_customer_id'] = {
+        'description': 'Profile ID',
+        'type': 'string',
+        'field': "customer_id"
+    }
     primary_keys = []
     write_schema(stream, discovered_schema, primary_keys)
 
     LOGGER.info("Syncing %s for customer %s", stream, sdk_client.client_customer_id)
-
-    field_list = get_field_list(discovered_schema, annotated_stream_schema, stream)
 
     for safe_selector in get_campaign_ids_safe_selectors(
             sdk_client,
@@ -514,12 +531,17 @@ def sync_campaign_ids_endpoint(sdk_client,
 
 def sync_generic_basic_endpoint(sdk_client, annotated_stream_schema, stream):
     discovered_schema = load_schema(stream)
+    field_list = get_field_list(discovered_schema, annotated_stream_schema, stream)
+    discovered_schema['properties']['_sdc_customer_id'] = {
+        'description': 'Profile ID',
+        'type': 'string',
+        'field': "customer_id"
+    }
     primary_keys = []
     write_schema(stream, discovered_schema, primary_keys)
 
     LOGGER.info("Syncing %s for customer %s", stream, sdk_client.client_customer_id)
 
-    field_list = get_field_list(discovered_schema, annotated_stream_schema, stream)
 
     start_index = 0
     while True:
@@ -609,9 +631,6 @@ def create_field_metadata_for_report(fields, field_name_lookup):
 
         metadata.append([breadcrumb, mdata])
 
-    #universal _sdc_customer_id column is an attribute
-    metadata.append([['properties', '_sdc_customer_id'], {'behavior' : 'ATTRIBUTE'}])
-
     return metadata
 
 def create_schema_for_report(stream, sdk_client):
@@ -632,12 +651,8 @@ def create_schema_for_report(stream, sdk_client):
             # 400 if it is not included in the field list.
             report_properties['day']['inclusion'] = 'automatic'
 
-    # _sdc_customer_id is synthetic column we add as a convenience to
-    # every report
-    report_properties['_sdc_customer_id'] = {'description': 'Profile ID',
-                                             'type': 'string',
-                                             'field': "customer_id",
-                                             'inclusion': 'automatic'}
+
+
     if stream == 'GEO_PERFORMANCE_REPORT':
         # Requests for this report that don't include countryTerritory
         # fail with an empty 400. There's no evidence for this in the

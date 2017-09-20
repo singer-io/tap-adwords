@@ -12,13 +12,6 @@
         "string"
       ]
     },
-    "_sdc_customer_id": {
-      "description": "Profile ID",
-      "type": "string",
-      "inclusion": "automatic",
-      "behavior": "ATTRIBUTE",
-      "field": "customer_id"
-    },
     "baseAdGroupId": {
       "inclusion": "available",
       "type": [
