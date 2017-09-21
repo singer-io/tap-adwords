@@ -609,7 +609,7 @@ def do_sync(properties, sdk_client):
     for catalog in properties['streams']:
         stream_name = catalog.get('stream')
         stream_schema = catalog.get('schema')
-        stream_metadata = metadata.compile_metadata(catalog)
+        stream_metadata = metadata.deserialize(catalog.get('metadata'))
 
         if stream_schema.get('selected'):
             LOGGER.info('Syncing stream %s ...', stream_name)
@@ -629,19 +629,20 @@ def create_type_map(typ):
     return {'type' : ['null', 'string']}
 
 def create_field_metadata_for_report(fields, field_name_lookup):
-    metadata = []
-
+    mdata = {}
     for field in fields:
-        breadcrumb = ['properties', str(field['xmlAttributeName'])]
-        mdata = {}
+        breadcrumb = ('properties', str(field['xmlAttributeName']))
         if  hasattr(field, "exclusiveFields"):
-            mdata['fieldExclusions'] = [['properties', field_name_lookup[x]] for x in field['exclusiveFields']]
+            mdata = metadata.write(mdata,
+                                   breadcrumb,
+                                   'fieldExclusions',
+                                   [['properties', field_name_lookup[x]]
+                                    for x
+                                    in field['exclusiveFields']])
+        mdata = metadata.write(mdata, breadcrumb, 'behavior', field['fieldBehavior'])
+        mdata = metadata.write(mdata, breadcrumb, 'fieldName', field['fieldName'])
 
-        mdata['behavior'] = field['fieldBehavior']
-        mdata['fieldName'] = field['fieldName']
-        metadata.append([breadcrumb, mdata])
-
-    return metadata
+    return mdata
 
 def create_schema_for_report(stream, sdk_client):
     report_properties = {}
@@ -684,13 +685,13 @@ def create_schema_for_report(stream, sdk_client):
         report_properties['endTime']['type'] = ['null', 'string']
         report_properties['endTime']['format'] = 'date-time'
 
-    metadata = create_field_metadata_for_report(fields, field_name_lookup)
+    mdata = create_field_metadata_for_report(fields, field_name_lookup)
 
     return ({"type": "object",
              "is_report": 'true',
              "properties": report_properties,
              "inclusion": "available"},
-            metadata)
+            mdata)
 
 def check_selected_fields(stream, field_list, sdk_client):
     field_set = set(field_list)
@@ -727,10 +728,10 @@ def do_discover_reports(sdk_client):
     streams = []
     LOGGER.info("Starting report discovery")
     for stream_name in stream_names:
-        schema, metadata = create_schema_for_report(stream_name, sdk_client)
+        schema, mdata = create_schema_for_report(stream_name, sdk_client)
         streams.append({'stream': stream_name,
                         'tap_stream_id': stream_name,
-                        'metadata' : metadata,
+                        'metadata' : metadata.serialize(mdata),
                         'schema': schema})
 
     LOGGER.info("Report discovery complete")
