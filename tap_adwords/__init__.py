@@ -20,6 +20,7 @@ import singer.metrics as metrics
 import singer.bookmarks as bookmarks
 import singer
 from singer import utils
+from singer import metadata
 from singer import (transform,
                     UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING,
                     Transformer)
@@ -189,7 +190,7 @@ def add_synthetic_keys_to_stream_schema(stream_schema):
                                                            'format' : 'date-time'}
     return stream_schema
 
-def sync_report(stream_name, annotated_stream_schema, sdk_client):
+def sync_report(stream_name, annotated_stream_schema, stream_metadata, sdk_client):
     customer_id = sdk_client.client_customer_id
 
     stream_schema, _ = create_schema_for_report(stream_name, sdk_client)
@@ -204,10 +205,9 @@ def sync_report(stream_name, annotated_stream_schema, sdk_client):
 
     field_list = []
     for field in xml_attribute_list:
-        field_list.append(stream_schema['properties'][field]['field'])
+        field_list.append(stream_metadata[('properties', field)]['fieldName'])
 
     check_selected_fields(stream_name, field_list, sdk_client)
-
     start_date = apply_conversion_window(get_start_for_stream(customer_id, stream_name))
     if stream_name in REPORTS_WITH_90_DAY_MAX:
         cutoff = utils.now()+relativedelta(days=-90)
@@ -477,6 +477,13 @@ def get_field_list(discovered_schema, annotated_stream_schema, stream):
     LOGGER.info("Request fields: %s", field_list)
     field_list = filter_fields_by_stream_name(stream, field_list)
     LOGGER.info("Filtered fields: %s", field_list)
+    # These are munged because of the nature of the API. When you pass
+    # the field to the API you need to change its first letter to
+    # upper case.
+    #
+    # See:
+    # https://developers.google.com/adwords/api/docs/reference/v201708/AdGroupAdService.AdGroupAd
+    # for instance
     field_list = [f[0].upper()+f[1:] for f in field_list]
     LOGGER.info("Munged fields: %s", field_list)
     return field_list
@@ -535,6 +542,7 @@ def sync_campaign_ids_endpoint(sdk_client,
 def sync_generic_basic_endpoint(sdk_client, annotated_stream_schema, stream):
     discovered_schema = load_schema(stream)
     field_list = get_field_list(discovered_schema, annotated_stream_schema, stream)
+
     discovered_schema['properties']['_sdc_customer_id'] = {
         'description': 'Profile ID',
         'type': 'string',
@@ -591,20 +599,21 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
     else:
         raise Exception("Undefined generic endpoint %s", stream_name)
 
-def sync_stream(stream, annotated_schema, sdk_client):
-    if stream in GENERIC_ENDPOINT_MAPPINGS:
-        sync_generic_endpoint(stream, annotated_schema, sdk_client)
+def sync_stream(stream_name, stream_schema, stream_metdata, sdk_client):
+    if stream_name in GENERIC_ENDPOINT_MAPPINGS:
+        sync_generic_endpoint(stream_name, stream_schema, sdk_client)
     else:
-        sync_report(stream, annotated_schema, sdk_client)
+        sync_report(stream_name, stream_schema, stream_metdata, sdk_client)
 
-def do_sync(annotated_schema, sdk_client):
-    for stream in annotated_schema['streams']:
-        stream_name = stream.get('stream')
-        stream_schema = stream.get('schema')
+def do_sync(properties, sdk_client):
+    for catalog in properties['streams']:
+        stream_name = catalog.get('stream')
+        stream_schema = catalog.get('schema')
+        stream_metadata = metadata.compile_metadata(catalog)
+
         if stream_schema.get('selected'):
             LOGGER.info('Syncing stream %s ...', stream_name)
-            sync_stream(stream_name, stream_schema, sdk_client)
-
+            sync_stream(stream_name, stream_schema, stream_metadata, sdk_client)
         else:
             LOGGER.info('Skipping stream %s.', stream_name)
 
@@ -619,7 +628,6 @@ def create_type_map(typ):
         return REPORT_TYPE_MAPPINGS.get(typ)
     return {'type' : ['null', 'string']}
 
-
 def create_field_metadata_for_report(fields, field_name_lookup):
     metadata = []
 
@@ -630,7 +638,7 @@ def create_field_metadata_for_report(fields, field_name_lookup):
             mdata['fieldExclusions'] = [['properties', field_name_lookup[x]] for x in field['exclusiveFields']]
 
         mdata['behavior'] = field['fieldBehavior']
-
+        mdata['fieldName'] = field['fieldName']
         metadata.append([breadcrumb, mdata])
 
     return metadata
@@ -644,7 +652,6 @@ def create_schema_for_report(stream, sdk_client):
     for field in fields:
         field_name_lookup[field['fieldName']] = str(field['xmlAttributeName'])
         report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName'],
-                                                        'field': field['fieldName'],
                                                         'inclusion': "available"}
         report_properties[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
 
@@ -665,11 +672,7 @@ def create_schema_for_report(stream, sdk_client):
         # The data for this field is "image/jpeg" etc. However, the
         # discovered schema from the report description service claims
         # that it should be an integer. This is needed to correct that.
-        report_properties['imageMimeType'] = {
-            'description': 'Image Mime Type',
-            'type': ['null', 'string'],
-            'field': 'ImageCreativeMimeType',
-        }
+        report_properties['imageMimeType']['type'] = ['null', 'string']
 
     if stream == 'CALL_METRICS_CALL_DETAILS_REPORT':
         # The data for this field is something like `Jan 1, 2016 1:32:22
