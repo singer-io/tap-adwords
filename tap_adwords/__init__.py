@@ -609,7 +609,7 @@ def do_sync(properties, sdk_client):
     for catalog in properties['streams']:
         stream_name = catalog.get('stream')
         stream_schema = catalog.get('schema')
-        stream_metadata = metadata.deserialize(catalog.get('metadata'))
+        stream_metadata = metadata.to_map(catalog.get('metadata'))
 
         if stream_schema.get('selected'):
             LOGGER.info('Syncing stream %s ...', stream_name)
@@ -731,7 +731,7 @@ def do_discover_reports(sdk_client):
         schema, mdata = create_schema_for_report(stream_name, sdk_client)
         streams.append({'stream': stream_name,
                         'tap_stream_id': stream_name,
-                        'metadata' : metadata.serialize(mdata),
+                        'metadata' : metadata.to_list(mdata),
                         'schema': schema})
 
     LOGGER.info("Report discovery complete")
