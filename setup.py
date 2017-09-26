@@ -12,7 +12,7 @@ setup(name='tap-adwords',
       install_requires=[
           'singer-python==3.5.1',
           'requests==2.13.0',
-          'googleads==6.0.0',
+          'googleads==8.0.0',
           'suds-jurko==0.6'
       ],
       entry_points='''
