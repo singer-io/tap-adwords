@@ -76,7 +76,7 @@ VERIFIED_REPORTS = frozenset([
     'CAMPAIGN_PERFORMANCE_REPORT',
     #'CAMPAIGN_SHARED_SET_REPORT',                      -- does NOT allow for querying by date range
     'CLICK_PERFORMANCE_REPORT',
-    #'CREATIVE_CONVERSION_REPORT',
+    'CREATIVE_CONVERSION_REPORT',
     'CRITERIA_PERFORMANCE_REPORT',
     #'DESTINATION_URL_REPORT',
     #'DISPLAY_KEYWORD_PERFORMANCE_REPORT',
@@ -684,6 +684,10 @@ def create_schema_for_report(stream, sdk_client):
         # PM` but the discovered schema is integer
         report_properties['endTime']['type'] = ['null', 'string']
         report_properties['endTime']['format'] = 'date-time'
+
+    if stream == 'CREATIVE_CONVERSION_REPORT':
+        report_properties['adGroupID']['inclusion'] = 'automatic'
+        report_properties['campaignID']['inclusion'] = 'automatic'
 
     mdata = create_field_metadata_for_report(fields, field_name_lookup)
 
