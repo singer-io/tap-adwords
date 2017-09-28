@@ -42,7 +42,8 @@ REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
                         "Date":     {"type": ["null", "string"],
                                      "format": "date-time"},
                         "DateTime": {"type": ["null", "string"],
-                                     "format": "date-time"}}
+                                     "format": "date-time"},
+                        "Money":    {"type": ["null", "integer", "string"]}}
 
 GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
                                            'service_name': 'CampaignService'},
