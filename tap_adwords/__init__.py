@@ -775,7 +775,7 @@ def do_sync_all_customers(customer_ids, properties):
         do_sync(properties, sdk_client)
         LOGGER.info('Done syncing customer ID %s.', customer_id)
 
-def main():
+def main_impl():
     args = utils.parse_args(REQUIRED_CONFIG_KEYS)
 
     CONFIG.update(args.config)
@@ -791,5 +791,12 @@ def main():
     else:
         LOGGER.info("No properties were selected")
 
+def main():
+    try:
+        main_impl()
+    except Exception as e:
+        LOGGER.critical(e)
+        raise(e)
+        
 if __name__ == "__main__":
     main()
