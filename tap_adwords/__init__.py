@@ -273,11 +273,15 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
 
     # Fetch the report as a csv string
     with metrics.http_request_timer(stream_name):
-        result = report_downloader.DownloadReportAsString(
-            report, skip_report_header=True, skip_column_header=False,
-            skip_report_summary=True,
-            # Do not get data with 0 impressions, because some reports don't support that
-            include_zero_impressions=False)
+        try:
+            result = report_downloader.DownloadReportAsString(
+                report, skip_report_header=True, skip_column_header=False,
+                skip_report_summary=True,
+                # Do not get data with 0 impressions, because some reports don't support that
+                include_zero_impressions=False)
+        except (googleads.errors.AdWordsReportBadRequestError) as ex:
+            LOGGER.fatal("AdWordsReportBadRequestError encountered!!!!!!!!!  type: {}, trigger: {}, field_path: {}, code: {}, error: {}, content: {}".format(ex.type, ex.trigger, ex.field_path, ex.code, ex.error, ex.content))
+            raise ex
 
     headers, values = parse_csv_string(result)
     with metrics.record_counter(stream_name) as counter:
