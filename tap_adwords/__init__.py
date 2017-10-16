@@ -25,7 +25,6 @@ from singer import (transform,
                     UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING,
                     Transformer)
 from dateutil.relativedelta import (relativedelta)
-import time
 
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
@@ -258,8 +257,8 @@ def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
 
     return data
 
-RETRY_SLEEP_TIME=60
-MAX_ATTEMPTS=3
+RETRY_SLEEP_TIME = 60
+MAX_ATTEMPTS = 3
 def with_retries_on_exception(sleepy_time, max_attempts):
     def wrap(some_function):
         def wrapped_function(*args):
@@ -272,9 +271,9 @@ def with_retries_on_exception(sleepy_time, max_attempts):
             except Exception as our_ex:
                 ex = our_ex
 
-            while (ex and attempts < max_attempts):
-                LOGGER.warn("attempt {} of {} failed".format(attempts, some_function))
-                LOGGER.warn("waiting {} seconds before retrying".format(RETRY_SLEEP_TIME))
+            while ex and attempts < max_attempts:
+                LOGGER.warning("attempt {} of {} failed".format(attempts, some_function))
+                LOGGER.warning("waiting {} seconds before retrying".format(sleepy_time))
                 time.sleep(RETRY_SLEEP_TIME)
                 try:
                     ex = None
@@ -286,7 +285,7 @@ def with_retries_on_exception(sleepy_time, max_attempts):
 
             if ex:
                 LOGGER.critical("Error encountered when contacting Google AdWords API after {} retries".format(MAX_ATTEMPTS))
-                raise ex
+                raise ex #pylint: disable=raising-bad-type
             else:
                 return result
         return wrapped_function
@@ -299,7 +298,7 @@ def attempt_download_report(report_downloader, report):
         skip_report_summary=True,
         # Do not get data with 0 impressions, because some reports don't support that
         include_zero_impressions=False)
-    return (result)
+    return result
 
 def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list): # pylint: disable=too-many-locals
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
