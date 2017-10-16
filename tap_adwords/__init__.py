@@ -26,7 +26,6 @@ from singer import (transform,
                     Transformer)
 from dateutil.relativedelta import (relativedelta)
 
-
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
 PAGE_SIZE = 1000
@@ -258,6 +257,49 @@ def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
 
     return data
 
+RETRY_SLEEP_TIME = 60
+MAX_ATTEMPTS = 3
+def with_retries_on_exception(sleepy_time, max_attempts):
+    def wrap(some_function):
+        def wrapped_function(*args):
+            attempts = 1
+            ex = None
+            result = None
+
+            try:
+                result = some_function(*args)
+            except Exception as our_ex:
+                ex = our_ex
+
+            while ex and attempts < max_attempts:
+                LOGGER.warning("attempt {} of {} failed".format(attempts, some_function))
+                LOGGER.warning("waiting {} seconds before retrying".format(sleepy_time))
+                time.sleep(RETRY_SLEEP_TIME)
+                try:
+                    ex = None
+                    result = some_function(*args)
+                except Exception as our_ex:
+                    ex = our_ex
+
+                attempts = attempts + 1
+
+            if ex:
+                LOGGER.critical("Error encountered when contacting Google AdWords API after {} retries".format(MAX_ATTEMPTS))
+                raise ex #pylint: disable=raising-bad-type
+            else:
+                return result
+        return wrapped_function
+    return wrap
+
+@with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
+def attempt_download_report(report_downloader, report):
+    result = report_downloader.DownloadReportAsString(
+        report, skip_report_header=True, skip_column_header=False,
+        skip_report_summary=True,
+        # Do not get data with 0 impressions, because some reports don't support that
+        include_zero_impressions=False)
+    return result
+
 def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list): # pylint: disable=too-many-locals
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
     customer_id = sdk_client.client_customer_id
@@ -271,17 +313,9 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
             'dateRange': {'min': start.strftime('%Y%m%d'),
                           'max': start.strftime('%Y%m%d')}}}
 
-    # Fetch the report as a csv string
+     # Fetch the report as a csv string
     with metrics.http_request_timer(stream_name):
-        try:
-            result = report_downloader.DownloadReportAsString(
-                report, skip_report_header=True, skip_column_header=False,
-                skip_report_summary=True,
-                # Do not get data with 0 impressions, because some reports don't support that
-                include_zero_impressions=False)
-        except (googleads.errors.AdWordsReportBadRequestError) as ex:
-            LOGGER.fatal("AdWordsReportBadRequestError encountered!!!!!!!!!  type: {}, trigger: {}, field_path: {}, code: {}, error: {}, content: {}".format(ex.type, ex.trigger, ex.field_path, ex.code, ex.error, ex.content))
-            raise ex
+        result = attempt_download_report(report_downloader, report)
 
     headers, values = parse_csv_string(result)
     with metrics.record_counter(stream_name) as counter:
@@ -382,6 +416,10 @@ def get_campaign_ids(sdk_client):
                 page['totalNumEntries'])
     return campaign_ids
 
+@with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
+def attempt_get_from_service(service_caller, selector):
+    return service_caller.get(selector)
+
 def get_campaign_ids_filtered_page(sdk_client, fields, campaign_ids, stream, start_index):
     service_name = GENERIC_ENDPOINT_MAPPINGS[stream]['service_name']
     service_caller = sdk_client.GetService(service_name, version=VERSION)
@@ -406,7 +444,7 @@ def get_campaign_ids_filtered_page(sdk_client, fields, campaign_ids, stream, sta
                     start_index,
                     sdk_client.client_customer_id,
                     campaign_ids)
-        page = service_caller.get(selector)
+        page = attempt_get_from_service(service_caller, selector)
         return page
 
 def get_unfiltered_page(sdk_client, fields, start_index, stream):
@@ -425,7 +463,7 @@ def get_unfiltered_page(sdk_client, fields, start_index, stream):
                     stream,
                     start_index,
                     sdk_client.client_customer_id)
-        page = service_caller.get(selector)
+        page = attempt_get_from_service(service_caller, selector)
         return page
 
 def is_campaign_ids_selector_safe(sdk_client, campaign_ids, stream):
