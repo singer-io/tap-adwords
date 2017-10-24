@@ -149,17 +149,17 @@ def get_end_date():
 def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
 
-def should_sync(discovered_schema, annotated_schema, field):
-    if annotated_schema['properties'][field].get('selected'):
+def should_sync(stream_schema, metadata, field):
+    if metadata.get(('properties', field), {}).get('selected'):
         return True
-    elif  discovered_schema['properties'][field].get('inclusion') == 'automatic':
+    elif stream_schema['properties'][field].get('inclusion') == 'automatic':
         return True
 
     return False
 
-def get_fields_to_sync(discovered_schema, annotated_schema):
-    fields = annotated_schema['properties'] # pylint: disable=unsubscriptable-object
-    return [field for field in fields if should_sync(discovered_schema, annotated_schema, field)]
+def get_fields_to_sync(discovered_schema, metadata):
+    fields = discovered_schema['properties'] # pylint: disable=unsubscriptable-object
+    return [field for field in fields if should_sync(discovered_schema, metadata, field)]
 
 def strip_inclusion(dic):
     dic.pop("inclusion", None)
@@ -190,13 +190,13 @@ def add_synthetic_keys_to_stream_schema(stream_schema):
                                                            'format' : 'date-time'}
     return stream_schema
 
-def sync_report(stream_name, annotated_stream_schema, stream_metadata, sdk_client):
+def sync_report(stream_name, stream_schema, stream_metadata, sdk_client):
     customer_id = sdk_client.client_customer_id
 
     stream_schema, _ = create_schema_for_report(stream_name, sdk_client)
     stream_schema = add_synthetic_keys_to_stream_schema(stream_schema)
 
-    xml_attribute_list = get_fields_to_sync(stream_schema, annotated_stream_schema)
+    xml_attribute_list = get_fields_to_sync(stream_schema, stream_metadata)
 
     primary_keys = []
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
@@ -514,9 +514,9 @@ def get_campaign_ids_safe_selectors(sdk_client,
     safe_selectors += [current_campaign_ids_window]
     return safe_selectors
 
-def get_field_list(discovered_schema, annotated_stream_schema, stream):
+def get_field_list(stream_schema, stream, stream_metadata):
     #NB> add synthetic keys
-    field_list = get_fields_to_sync(discovered_schema, annotated_stream_schema)
+    field_list = get_fields_to_sync(stream_schema, stream_metadata)
     LOGGER.info("Request fields: %s", field_list)
     field_list = filter_fields_by_stream_name(stream, field_list)
     LOGGER.info("Filtered fields: %s", field_list)
@@ -533,10 +533,11 @@ def get_field_list(discovered_schema, annotated_stream_schema, stream):
 
 def sync_campaign_ids_endpoint(sdk_client,
                                campaign_ids,
-                               annotated_stream_schema,
-                               stream):
+                               stream_schema,
+                               stream,
+                               stream_metadata):
     discovered_schema = load_schema(stream)
-    field_list = get_field_list(discovered_schema, annotated_stream_schema, stream)
+    field_list = get_field_list(discovered_schema, stream, stream_metadata)
     discovered_schema['properties']['_sdc_customer_id'] = {
         'description': 'Profile ID',
         'type': 'string',
@@ -582,9 +583,9 @@ def sync_campaign_ids_endpoint(sdk_client,
                 break
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
 
-def sync_generic_basic_endpoint(sdk_client, annotated_stream_schema, stream):
+def sync_generic_basic_endpoint(sdk_client, stream_schema, stream, stream_metadata):
     discovered_schema = load_schema(stream)
-    field_list = get_field_list(discovered_schema, annotated_stream_schema, stream)
+    field_list = get_field_list(discovered_schema, stream, stream_metadata)
 
     discovered_schema['properties']['_sdc_customer_id'] = {
         'description': 'Profile ID',
@@ -624,7 +625,7 @@ def sync_generic_basic_endpoint(sdk_client, annotated_stream_schema, stream):
             break
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
 
-def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
+def sync_generic_endpoint(stream_name, stream_schema, stream_metadata, sdk_client):
     campaign_ids = get_campaign_ids(sdk_client)
     if stream_name == 'ads' or stream_name == 'ad_groups':
         if not campaign_ids:
@@ -633,20 +634,22 @@ def sync_generic_endpoint(stream_name, annotated_stream_schema, sdk_client):
 
         sync_campaign_ids_endpoint(sdk_client,
                                    campaign_ids,
-                                   annotated_stream_schema,
-                                   stream_name)
+                                   stream_schema,
+                                   stream_name,
+                                   stream_metadata)
     elif stream_name == 'campaigns' or stream_name == 'accounts':
         sync_generic_basic_endpoint(sdk_client,
-                                    annotated_stream_schema,
-                                    stream_name)
+                                    stream_schema,
+                                    stream_name,
+                                    stream_metadata)
     else:
         raise Exception("Undefined generic endpoint %s", stream_name)
 
-def sync_stream(stream_name, stream_schema, stream_metdata, sdk_client):
+def sync_stream(stream_name, stream_schema, stream_metadata, sdk_client):
     if stream_name in GENERIC_ENDPOINT_MAPPINGS:
-        sync_generic_endpoint(stream_name, stream_schema, sdk_client)
+        sync_generic_endpoint(stream_name, stream_schema, stream_metadata, sdk_client)
     else:
-        sync_report(stream_name, stream_schema, stream_metdata, sdk_client)
+        sync_report(stream_name, stream_schema, stream_metadata, sdk_client)
 
 def do_sync(properties, sdk_client):
     for catalog in properties['streams']:
@@ -654,7 +657,7 @@ def do_sync(properties, sdk_client):
         stream_schema = catalog.get('schema')
         stream_metadata = metadata.to_map(catalog.get('metadata'))
 
-        if stream_schema.get('selected'):
+        if stream_metadata.get((), {}).get('selected'):
             LOGGER.info('Syncing stream %s ...', stream_name)
             sync_stream(stream_name, stream_schema, stream_metadata, sdk_client)
         else:
