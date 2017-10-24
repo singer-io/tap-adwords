@@ -152,7 +152,7 @@ def state_key_name(customer_id, report_name):
 def should_sync(stream_schema, metadata, field):
     if metadata.get(('properties', field), {}).get('selected'):
         return True
-    elif stream_schema['properties'][field].get('inclusion') == 'automatic':
+    elif metadata.get(('properties', field), {}).get('inclusion') == 'automatic':
         return True
 
     return False
@@ -161,15 +161,8 @@ def get_fields_to_sync(discovered_schema, metadata):
     fields = discovered_schema['properties'] # pylint: disable=unsubscriptable-object
     return [field for field in fields if should_sync(discovered_schema, metadata, field)]
 
-def strip_inclusion(dic):
-    dic.pop("inclusion", None)
-    for val in dic.values():
-        if isinstance(val, dict):
-            strip_inclusion(val)
-
 def write_schema(stream_name, schema, primary_keys):
     schema_copy = copy.deepcopy(schema)
-    strip_inclusion(schema_copy)
     singer.write_schema(stream_name, schema_copy, primary_keys)
 
 # No rate limit here, since this request is only made once
@@ -674,8 +667,10 @@ def create_type_map(typ):
         return REPORT_TYPE_MAPPINGS.get(typ)
     return {'type' : ['null', 'string']}
 
-def create_field_metadata_for_report(fields, field_name_lookup):
+def create_field_metadata_for_report(stream, fields, field_name_lookup):
     mdata = {}
+    mdata = metadata.write(mdata, (), 'inclusion', 'available')
+
     for field in fields:
         breadcrumb = ('properties', str(field['xmlAttributeName']))
         if  hasattr(field, "exclusiveFields"):
@@ -688,6 +683,21 @@ def create_field_metadata_for_report(fields, field_name_lookup):
         mdata = metadata.write(mdata, breadcrumb, 'behavior', field['fieldBehavior'])
         mdata = metadata.write(mdata, breadcrumb, 'fieldName', field['fieldName'])
 
+        #inclusion
+        if field['xmlAttributeName'] == 'day':
+            # Every report with this attribute errors with an empty
+            # 400 if it is not included in the field list.
+            mdata = metadata.write(mdata, breadcrumb, 'inclusion', 'automatic')
+        else:
+            mdata = metadata.write(mdata, breadcrumb, 'inclusion', 'available')
+
+
+    if stream == 'GEO_PERFORMANCE_REPORT':
+        # Requests for this report that don't include countryTerritory
+        # fail with an empty 400. There's no evidence for this in the
+        # docs but it is what it is.
+        mdata = metadata.write(mdata, ('properties', 'countryTerritory'), 'inclusion', 'automatic')
+
     return mdata
 
 def create_schema_for_report(stream, sdk_client):
@@ -698,22 +708,9 @@ def create_schema_for_report(stream, sdk_client):
 
     for field in fields:
         field_name_lookup[field['fieldName']] = str(field['xmlAttributeName'])
-        report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName'],
-                                                        'inclusion': "available"}
+        report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName']}
         report_properties[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
 
-        if field['xmlAttributeName'] == 'day':
-            # Every report with this attribute errors with an empty
-            # 400 if it is not included in the field list.
-            report_properties['day']['inclusion'] = 'automatic'
-
-
-
-    if stream == 'GEO_PERFORMANCE_REPORT':
-        # Requests for this report that don't include countryTerritory
-        # fail with an empty 400. There's no evidence for this in the
-        # docs but it is what it is.
-        report_properties['countryTerritory']['inclusion'] = 'automatic'
 
     if stream == 'AD_PERFORMANCE_REPORT':
         # The data for this field is "image/jpeg" etc. However, the
@@ -731,12 +728,11 @@ def create_schema_for_report(stream, sdk_client):
         report_properties['endTime']['type'] = ['null', 'string']
         report_properties['endTime']['format'] = 'date-time'
 
-    mdata = create_field_metadata_for_report(fields, field_name_lookup)
+    mdata = create_field_metadata_for_report(stream, fields, field_name_lookup)
 
     return ({"type": "object",
              "is_report": 'true',
-             "properties": report_properties,
-             "inclusion": "available"},
+             "properties": report_properties},
             mdata)
 
 def check_selected_fields(stream, field_list, sdk_client):
