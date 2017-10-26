@@ -1,87 +1,74 @@
 {
-  "inclusion": "available",
   "type": [
     "null",
     "object"
   ],
   "properties": {
     "status": {
-      "inclusion": "available",
       "type": [
         "null",
         "string"
       ]
     },
     "baseAdGroupId": {
-      "inclusion": "available",
       "type": [
         "null",
         "integer"
       ]
     },
     "policySummary": {
-      "inclusion": "available",
       "type": [
         "null",
         "object"
       ],
       "properties": {
         "reviewState": {
-          "inclusion": "available",
           "type": [
             "null",
             "string"
           ]
         },
         "denormalizedStatus": {
-          "inclusion": "available",
           "type": [
             "null",
             "string"
           ]
         },
         "policyTopicEntries": {
-          "inclusion": "available",
           "type": [
             "null",
             "array"
           ],
           "items": {
-            "inclusion": "available",
             "type": [
               "null",
               "object"
             ],
             "properties": {
               "policyTopicName": {
-                "inclusion": "available",
                 "type": [
                   "null",
                   "string"
                 ]
               },
               "policyTopicEvidences": {
-                "inclusion": "available",
                 "type": [
                   "null",
                   "array"
                 ],
                 "items": {
-                  "inclusion": "available",
                   "type": [
                     "null",
                     "object"
                   ],
                   "properties": {
                     "policyTopicEvidenceType": {
-                      "inclusion": "available",
                       "type": [
                         "null",
                         "string"
                       ]
                     },
                     "evidenceText": {
-                      "inclusion": "available",
                       "type": [
                         "null",
                         "string"
@@ -91,14 +78,12 @@
                 }
               },
               "policyTopicEntryType": {
-                "inclusion": "available",
                 "type": [
                   "null",
                   "string"
                 ]
               },
               "policyTopicId": {
-                "inclusion": "available",
                 "type": [
                   "null",
                   "string"
@@ -108,7 +93,6 @@
           }
         },
         "combinedApprovalStatus": {
-          "inclusion": "available",
           "type": [
             "null",
             "string"
@@ -117,21 +101,18 @@
       }
     },
     "baseCampaignId": {
-      "inclusion": "available",
       "type": [
         "null",
         "integer"
       ]
     },
     "adGroupId": {
-      "inclusion": "automatic",
       "type": [
         "null",
         "integer"
       ]
     },
     "trademarkDisapproved": {
-      "inclusion": "available",
       "type": [
         "null",
         "boolean"

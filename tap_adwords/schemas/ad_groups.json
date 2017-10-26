@@ -1,95 +1,81 @@
 {
   "additionalProperties": false,
-  "inclusion": "available",
   "type": [
     "null",
     "object"
   ],
   "properties": {
     "status": {
-      "inclusion": "available",
       "type": [
         "null",
         "string"
       ]
     },
     "campaignName": {
-      "inclusion": "available",
       "type": [
         "null",
         "string"
       ]
     },
     "id": {
-      "inclusion": "automatic",
       "type": [
         "null",
         "integer"
       ]
     },
     "campaignId": {
-      "inclusion": "available",
       "type": [
         "null",
         "integer"
       ]
     },
     "baseCampaignId": {
-      "inclusion": "available",
       "type": [
         "null",
         "integer"
       ]
     },
     "name": {
-      "inclusion": "available",
       "type": [
         "null",
         "string"
       ]
     },
     "adGroupType": {
-      "inclusion": "available",
       "type": [
         "null",
         "string"
       ]
     },
     "settings": {
-      "inclusion": "available",
       "type": [
         "null",
         "array"
       ],
       "items": {
-        "inclusion": "available",
         "type": [
           "null",
           "object"
         ],
         "properties": {
           "details": {
-            "inclusion": "available",
             "type": [
               "null",
               "array"
             ],
             "items": {
-              "inclusion": "available",
               "type": [
                 "null",
                 "object"
               ],
               "properties": {
                 "targetAll": {
-                  "inclusion": "available",
                   "type": [
                     "null",
                     "integer"
                   ]
                 },
                 "criterionTypeGroup": {
-                  "inclusion": "available",
                   "type": [
                     "null",
                     "string"
@@ -99,14 +85,12 @@
             }
           },
           "Setting.Type": {
-            "inclusion": "available",
             "type": [
               "null",
               "string"
             ]
           },
           "optIn": {
-            "inclusion": "available",
             "type": [
               "null",
               "integer"
@@ -116,41 +100,35 @@
       }
     },
     "biddingStrategyConfiguration": {
-      "inclusion": "automatic",
       "type": [
         "null",
         "object"
       ],
       "properties": {
         "bids": {
-          "inclusion": "available",
           "type": [
             "null",
             "array"
           ],
           "items": {
-            "inclusion": "available",
             "type": [
               "null",
               "object"
             ],
             "properties": {
               "bid": {
-                "inclusion": "available",
                 "type": [
                   "null",
                   "object"
                 ],
                 "properties": {
                   "ComparableValue.Type": {
-                    "inclusion": "available",
                     "type": [
                       "null",
                       "string"
                     ]
                   },
                   "microAmount": {
-                    "inclusion": "available",
                     "type": [
                       "null",
                       "integer"
@@ -159,14 +137,12 @@
                 }
               },
               "bidSource": {
-                "inclusion": "available",
                 "type": [
                   "null",
                   "string"
                 ]
               },
               "Bids.Type": {
-                "inclusion": "available",
                 "type": [
                   "null",
                   "string"
@@ -178,55 +154,47 @@
       }
     },
     "baseAdGroupId": {
-      "inclusion": "available",
       "type": [
         "null",
         "integer"
       ]
     },
     "labels": {
-      "inclusion": "available",
       "type": [
         "null",
         "array"
       ],
       "items": {
-        "inclusion": "available",
         "type": [
           "null",
           "object"
         ],
         "properties": {
           "id": {
-            "inclusion": "available",
             "type": [
               "null",
               "integer"
             ]
           },
           "name": {
-            "inclusion": "available",
             "type": [
               "null",
               "string"
             ]
           },
           "attribute": {
-            "inclusion": "available",
             "type": [
               "null",
               "object"
             ],
             "properties": {
               "backgroundColor": {
-                "inclusion": "available",
                 "type": [
                   "null",
                   "string"
                 ]
               },
               "LabelAttribute.Type": {
-                "inclusion": "available",
                 "type": [
                   "null",
                   "string"
@@ -235,14 +203,12 @@
             }
           },
           "Label.Type": {
-            "inclusion": "available",
             "type": [
               "null",
               "string"
             ]
           },
           "status": {
-            "inclusion": "available",
             "type": [
               "null",
               "string"

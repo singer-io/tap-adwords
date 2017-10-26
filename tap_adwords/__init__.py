@@ -129,6 +129,10 @@ def get_abs_path(path):
 def load_schema(entity):
     return utils.load_json(get_abs_path("schemas/{}.json".format(entity)))
 
+
+def load_metadata(entity):
+    return utils.load_json(get_abs_path("metadata/{}.json".format(entity)))
+
 def get_start_for_stream(customer_id, stream_name):
     bk_value = bookmarks.get_bookmark(STATE,
                                       state_key_name(customer_id, stream_name),
@@ -530,6 +534,7 @@ def sync_campaign_ids_endpoint(sdk_client,
                                stream,
                                stream_metadata):
     discovered_schema = load_schema(stream)
+
     field_list = get_field_list(discovered_schema, stream, stream_metadata)
     discovered_schema['properties']['_sdc_customer_id'] = {
         'description': 'Profile ID',
@@ -779,14 +784,18 @@ def do_discover_reports(sdk_client):
     LOGGER.info("Report discovery complete")
     return streams
 
+
 def do_discover_generic_endpoints():
     streams = []
     LOGGER.info("Starting generic discovery")
     for stream_name in GENERIC_ENDPOINT_MAPPINGS:
         LOGGER.info('Loading schema for %s', stream_name)
+        schema = load_schema(stream_name)
+        md = load_metadata(stream_name)
         streams.append({'stream': stream_name,
                         'tap_stream_id': stream_name,
-                        'schema': load_schema(stream_name)})
+                        'schema': schema,
+                        'metadata': md})
     LOGGER.info("Generic discovery complete")
     return streams
 
