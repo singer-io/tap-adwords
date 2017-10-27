@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name='tap-adwords',
-      version="1.0.16",
+      version="1.0.17",
       description='Singer.io tap for extracting data from the Adwords api',
       author='Stitch',
       url='http://singer.io',
@@ -22,6 +22,12 @@ setup(name='tap-adwords',
       packages=['tap_adwords'],
       package_data = {
           'tap_adwords/schemas': [
+              "accounts.json",
+              "ad_groups.json",
+              "ads.json",
+              "campaigns.json",
+          ],
+          'tap_adwords/metadata': [
               "accounts.json",
               "ad_groups.json",
               "ads.json",
