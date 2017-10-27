@@ -202,7 +202,7 @@ def sync_report(stream_name, stream_schema, stream_metadata, sdk_client):
 
     field_list = []
     for field in xml_attribute_list:
-        field_list.append(stream_metadata[('properties', field)]['fieldName'])
+        field_list.append(stream_metadata[('properties', field)]['adwords.fieldName'])
 
     check_selected_fields(stream_name, field_list, sdk_client)
     start_date = apply_conversion_window(get_start_for_stream(customer_id, stream_name))
@@ -686,7 +686,7 @@ def create_field_metadata_for_report(stream, fields, field_name_lookup):
                                     for x
                                     in field['exclusiveFields']])
         mdata = metadata.write(mdata, breadcrumb, 'behavior', field['fieldBehavior'])
-        mdata = metadata.write(mdata, breadcrumb, 'fieldName', field['fieldName'])
+        mdata = metadata.write(mdata, breadcrumb, 'adwords.fieldName', field['fieldName'])
 
         #inclusion
         if field['xmlAttributeName'] == 'day':
