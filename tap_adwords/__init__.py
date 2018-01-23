@@ -10,7 +10,6 @@ import json
 import copy
 import xml.etree.ElementTree as ET
 
-from suds.client import Client
 import googleads
 from googleads import adwords
 from googleads import oauth2
@@ -25,6 +24,7 @@ from singer import (transform,
                     UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING,
                     Transformer)
 from dateutil.relativedelta import (relativedelta)
+from suds.client import Client
 
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
@@ -92,7 +92,7 @@ VERIFIED_REPORTS = frozenset([
     #'PARENTAL_STATUS_PERFORMANCE_REPORT',
     #'PLACEHOLDER_FEED_ITEM_REPORT',
     #'PLACEHOLDER_REPORT',
-    #'PLACEMENT_PERFORMANCE_REPORT',
+    'PLACEMENT_PERFORMANCE_REPORT',
     #'PRODUCT_PARTITION_REPORT',
     'SEARCH_QUERY_PERFORMANCE_REPORT',
     #'SHARED_SET_CRITERIA_REPORT',                      -- does NOT allow for querying by date range
