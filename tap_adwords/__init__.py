@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+# pylint: disable=wrong-import-order
 import datetime
 import os
 import sys
