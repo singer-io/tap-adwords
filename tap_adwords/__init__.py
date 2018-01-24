@@ -153,17 +153,17 @@ def get_end_date():
 def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
 
-def should_sync(stream_schema, metadata, field):
-    if metadata.get(('properties', field), {}).get('selected'):
+def should_sync(mdata, field):
+    if mdata.get(('properties', field), {}).get('selected'):
         return True
-    elif metadata.get(('properties', field), {}).get('inclusion') == 'automatic':
+    elif mdata.get(('properties', field), {}).get('inclusion') == 'automatic':
         return True
 
     return False
 
-def get_fields_to_sync(discovered_schema, metadata):
+def get_fields_to_sync(discovered_schema, mdata):
     fields = discovered_schema['properties'] # pylint: disable=unsubscriptable-object
-    return [field for field in fields if should_sync(discovered_schema, metadata, field)]
+    return [field for field in fields if should_sync(mdata, field)]
 
 def write_schema(stream_name, schema, primary_keys):
     schema_copy = copy.deepcopy(schema)
@@ -187,7 +187,7 @@ def add_synthetic_keys_to_stream_schema(stream_schema):
                                                            'format' : 'date-time'}
     return stream_schema
 
-def sync_report(stream_name, stream_schema, stream_metadata, sdk_client):
+def sync_report(stream_name, stream_metadata, sdk_client):
     customer_id = sdk_client.client_customer_id
 
     stream_schema, _ = create_schema_for_report(stream_name, sdk_client)
@@ -530,7 +530,6 @@ def get_field_list(stream_schema, stream, stream_metadata):
 
 def sync_campaign_ids_endpoint(sdk_client,
                                campaign_ids,
-                               stream_schema,
                                stream,
                                stream_metadata):
     discovered_schema = load_schema(stream)
@@ -581,7 +580,7 @@ def sync_campaign_ids_endpoint(sdk_client,
                 break
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
 
-def sync_generic_basic_endpoint(sdk_client, stream_schema, stream, stream_metadata):
+def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
     discovered_schema = load_schema(stream)
     field_list = get_field_list(discovered_schema, stream, stream_metadata)
 
@@ -623,7 +622,7 @@ def sync_generic_basic_endpoint(sdk_client, stream_schema, stream, stream_metada
             break
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
 
-def sync_generic_endpoint(stream_name, stream_schema, stream_metadata, sdk_client):
+def sync_generic_endpoint(stream_name, stream_metadata, sdk_client):
     campaign_ids = get_campaign_ids(sdk_client)
     if stream_name == 'ads' or stream_name == 'ad_groups':
         if not campaign_ids:
@@ -632,32 +631,29 @@ def sync_generic_endpoint(stream_name, stream_schema, stream_metadata, sdk_clien
 
         sync_campaign_ids_endpoint(sdk_client,
                                    campaign_ids,
-                                   stream_schema,
                                    stream_name,
                                    stream_metadata)
     elif stream_name == 'campaigns' or stream_name == 'accounts':
         sync_generic_basic_endpoint(sdk_client,
-                                    stream_schema,
                                     stream_name,
                                     stream_metadata)
     else:
         raise Exception("Undefined generic endpoint %s", stream_name)
 
-def sync_stream(stream_name, stream_schema, stream_metadata, sdk_client):
+def sync_stream(stream_name, stream_metadata, sdk_client):
     if stream_name in GENERIC_ENDPOINT_MAPPINGS:
-        sync_generic_endpoint(stream_name, stream_schema, stream_metadata, sdk_client)
+        sync_generic_endpoint(stream_name, stream_metadata, sdk_client)
     else:
-        sync_report(stream_name, stream_schema, stream_metadata, sdk_client)
+        sync_report(stream_name, stream_metadata, sdk_client)
 
 def do_sync(properties, sdk_client):
     for catalog in properties['streams']:
         stream_name = catalog.get('stream')
-        stream_schema = catalog.get('schema')
         stream_metadata = metadata.to_map(catalog.get('metadata'))
 
         if stream_metadata.get((), {}).get('selected'):
             LOGGER.info('Syncing stream %s ...', stream_name)
-            sync_stream(stream_name, stream_schema, stream_metadata, sdk_client)
+            sync_stream(stream_name, stream_metadata, sdk_client)
         else:
             LOGGER.info('Skipping stream %s.', stream_name)
 
