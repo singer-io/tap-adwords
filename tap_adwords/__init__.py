@@ -166,9 +166,9 @@ def get_fields_to_sync(discovered_schema, mdata):
     fields = discovered_schema['properties'] # pylint: disable=unsubscriptable-object
     return [field for field in fields if should_sync(mdata, field)]
 
-def write_schema(stream_name, schema, primary_keys, bookmark_properties=None):
+def write_schema(stream_name, schema, primary_keys):
     schema_copy = copy.deepcopy(schema)
-    singer.write_schema(stream_name, schema_copy, primary_keys, bookmark_properties=bookmark_properties)
+    singer.write_schema(stream_name, schema_copy, primary_keys)
 
 # No rate limit here, since this request is only made once
 # per discovery (not sync) job
@@ -197,10 +197,9 @@ def sync_report(stream_name, stream_metadata, sdk_client):
     xml_attribute_list = get_fields_to_sync(stream_schema, stream_metadata)
 
     primary_keys = []
-    bookmark_properties = ['date']
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
 
-    write_schema(stream_name, stream_schema, primary_keys, bookmark_properties=bookmark_properties)
+    write_schema(stream_name, stream_schema, primary_keys)
 
     field_list = []
     for field in xml_attribute_list:
