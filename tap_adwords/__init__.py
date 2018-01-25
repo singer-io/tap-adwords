@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+# pylint: disable=wrong-import-order
 import datetime
 import os
 import sys
@@ -165,9 +166,9 @@ def get_fields_to_sync(discovered_schema, mdata):
     fields = discovered_schema['properties'] # pylint: disable=unsubscriptable-object
     return [field for field in fields if should_sync(mdata, field)]
 
-def write_schema(stream_name, schema, primary_keys):
+def write_schema(stream_name, schema, primary_keys, bookmark_properties=None):
     schema_copy = copy.deepcopy(schema)
-    singer.write_schema(stream_name, schema_copy, primary_keys)
+    singer.write_schema(stream_name, schema_copy, primary_keys, bookmark_properties=bookmark_properties)
 
 # No rate limit here, since this request is only made once
 # per discovery (not sync) job
@@ -196,9 +197,10 @@ def sync_report(stream_name, stream_metadata, sdk_client):
     xml_attribute_list = get_fields_to_sync(stream_schema, stream_metadata)
 
     primary_keys = []
+    bookmark_properties = ['date']
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
 
-    write_schema(stream_name, stream_schema, primary_keys)
+    write_schema(stream_name, stream_schema, primary_keys, bookmark_properties=bookmark_properties)
 
     field_list = []
     for field in xml_attribute_list:
@@ -316,6 +318,8 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
 
     headers, values = parse_csv_string(result)
     with metrics.record_counter(stream_name) as counter:
+        time_extracted = utils.now()
+
         for _, val in enumerate(values):
             obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
             obj['_sdc_customer_id'] = customer_id
@@ -324,7 +328,7 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
                 bumble_bee.pre_hook = transform_pre_hook
                 obj = bumble_bee.transform(obj, stream_schema)
 
-            singer.write_record(stream_name, obj)
+            singer.write_record(stream_name, obj, time_extracted=time_extracted)
             counter.increment()
 
         if start > get_start_for_stream(sdk_client.client_customer_id, stream_name):
@@ -565,6 +569,8 @@ def sync_campaign_ids_endpoint(sdk_client,
                     campaign_ids))
             if 'entries' in page:
                 with metrics.record_counter(stream) as counter:
+                    time_extracted = utils.now()
+
                     for entry in page['entries']:
                         obj = suds_to_dict(entry)
                         obj['_sdc_customer_id'] = sdk_client.client_customer_id
@@ -572,7 +578,7 @@ def sync_campaign_ids_endpoint(sdk_client,
                             bumble_bee.pre_hook = transform_pre_hook
                             record = bumble_bee.transform(obj, discovered_schema)
 
-                            singer.write_record(stream, record)
+                            singer.write_record(stream, record, time_extracted=time_extracted)
                             counter.increment()
 
             start_index += PAGE_SIZE
@@ -607,6 +613,8 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
 
         if 'entries' in page:
             with metrics.record_counter(stream) as counter:
+                time_extracted = utils.now()
+
                 for entry in page['entries']:
                     obj = suds_to_dict(entry)
                     obj['_sdc_customer_id'] = sdk_client.client_customer_id
@@ -614,7 +622,7 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
                         bumble_bee.pre_hook = transform_pre_hook
                         record = bumble_bee.transform(obj, discovered_schema)
 
-                        singer.write_record(stream, record)
+                        singer.write_record(stream, record, time_extracted=time_extracted)
                         counter.increment()
 
         start_index += PAGE_SIZE
