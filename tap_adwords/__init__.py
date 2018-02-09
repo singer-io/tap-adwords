@@ -474,7 +474,7 @@ def is_campaign_ids_selector_safe(sdk_client, campaign_ids, stream):
 
 # Arbitrary window. Would be smarter to do a binary search rather than
 # build up from the bottom.
-CAMPAIGN_PARTITION_SIZE = 50
+CAMPAIGN_PARTITION_SIZE = 15
 
 # TODO The strategy here is naive. It assumes that the partition size will
 # be small enough to not contain 2 campaign ids that encompass a larger
