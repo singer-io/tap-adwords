@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+# pylint: disable=wrong-import-order
 import datetime
 import os
 import sys
@@ -10,7 +11,6 @@ import json
 import copy
 import xml.etree.ElementTree as ET
 
-from suds.client import Client
 import googleads
 from googleads import adwords
 from googleads import oauth2
@@ -93,7 +93,7 @@ VERIFIED_REPORTS = frozenset([
     #'PARENTAL_STATUS_PERFORMANCE_REPORT',
     #'PLACEHOLDER_FEED_ITEM_REPORT',
     #'PLACEHOLDER_REPORT',
-    #'PLACEMENT_PERFORMANCE_REPORT',
+    'PLACEMENT_PERFORMANCE_REPORT',
     #'PRODUCT_PARTITION_REPORT',
     'SEARCH_QUERY_PERFORMANCE_REPORT',
     #'SHARED_SET_CRITERIA_REPORT',                      -- does NOT allow for querying by date range
@@ -154,21 +154,21 @@ def get_end_date():
 def state_key_name(customer_id, report_name):
     return report_name + "_" + customer_id
 
-def should_sync(stream_schema, metadata, field):
-    if metadata.get(('properties', field), {}).get('selected'):
+def should_sync(mdata, field):
+    if mdata.get(('properties', field), {}).get('selected'):
         return True
-    elif metadata.get(('properties', field), {}).get('inclusion') == 'automatic':
+    elif mdata.get(('properties', field), {}).get('inclusion') == 'automatic':
         return True
 
     return False
 
-def get_fields_to_sync(discovered_schema, metadata):
+def get_fields_to_sync(discovered_schema, mdata):
     fields = discovered_schema['properties'] # pylint: disable=unsubscriptable-object
-    return [field for field in fields if should_sync(discovered_schema, metadata, field)]
+    return [field for field in fields if should_sync(mdata, field)]
 
-def write_schema(stream_name, schema, primary_keys):
+def write_schema(stream_name, schema, primary_keys, bookmark_properties=None):
     schema_copy = copy.deepcopy(schema)
-    singer.write_schema(stream_name, schema_copy, primary_keys)
+    singer.write_schema(stream_name, schema_copy, primary_keys, bookmark_properties=bookmark_properties)
 
 # No rate limit here, since this request is only made once
 # per discovery (not sync) job
@@ -188,7 +188,7 @@ def add_synthetic_keys_to_stream_schema(stream_schema):
                                                            'format' : 'date-time'}
     return stream_schema
 
-def sync_report(stream_name, stream_schema, stream_metadata, sdk_client):
+def sync_report(stream_name, stream_metadata, sdk_client):
     customer_id = sdk_client.client_customer_id
 
     stream_schema, _ = create_schema_for_report(stream_name, sdk_client)
@@ -199,7 +199,7 @@ def sync_report(stream_name, stream_schema, stream_metadata, sdk_client):
     primary_keys = []
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
 
-    write_schema(stream_name, stream_schema, primary_keys)
+    write_schema(stream_name, stream_schema, primary_keys, bookmark_properties=['day'])
 
     field_list = []
     for field in xml_attribute_list:
@@ -317,6 +317,8 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
 
     headers, values = parse_csv_string(result)
     with metrics.record_counter(stream_name) as counter:
+        time_extracted = utils.now()
+
         for _, val in enumerate(values):
             obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
             obj['_sdc_customer_id'] = customer_id
@@ -325,7 +327,7 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
                 bumble_bee.pre_hook = transform_pre_hook
                 obj = bumble_bee.transform(obj, stream_schema)
 
-            singer.write_record(stream_name, obj)
+            singer.write_record(stream_name, obj, time_extracted=time_extracted)
             counter.increment()
 
         if start > get_start_for_stream(sdk_client.client_customer_id, stream_name):
@@ -472,7 +474,7 @@ def is_campaign_ids_selector_safe(sdk_client, campaign_ids, stream):
 
 # Arbitrary window. Would be smarter to do a binary search rather than
 # build up from the bottom.
-CAMPAIGN_PARTITION_SIZE = 50
+CAMPAIGN_PARTITION_SIZE = 15
 
 def binary_search(l, min_high, max_high, kosher_fn):
     mid = math.ceil((min_high + max_high) / 2)
@@ -528,7 +530,6 @@ def get_field_list(stream_schema, stream, stream_metadata):
 
 def sync_campaign_ids_endpoint(sdk_client,
                                campaign_ids,
-                               stream_schema,
                                stream,
                                stream_metadata):
     discovered_schema = load_schema(stream)
@@ -564,6 +565,8 @@ def sync_campaign_ids_endpoint(sdk_client,
                     campaign_ids))
             if 'entries' in page:
                 with metrics.record_counter(stream) as counter:
+                    time_extracted = utils.now()
+
                     for entry in page['entries']:
                         obj = suds_to_dict(entry)
                         obj['_sdc_customer_id'] = sdk_client.client_customer_id
@@ -571,7 +574,7 @@ def sync_campaign_ids_endpoint(sdk_client,
                             bumble_bee.pre_hook = transform_pre_hook
                             record = bumble_bee.transform(obj, discovered_schema)
 
-                            singer.write_record(stream, record)
+                            singer.write_record(stream, record, time_extracted=time_extracted)
                             counter.increment()
 
             start_index += PAGE_SIZE
@@ -579,7 +582,7 @@ def sync_campaign_ids_endpoint(sdk_client,
                 break
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
 
-def sync_generic_basic_endpoint(sdk_client, stream_schema, stream, stream_metadata):
+def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
     discovered_schema = load_schema(stream)
     field_list = get_field_list(discovered_schema, stream, stream_metadata)
 
@@ -606,6 +609,8 @@ def sync_generic_basic_endpoint(sdk_client, stream_schema, stream, stream_metada
 
         if 'entries' in page:
             with metrics.record_counter(stream) as counter:
+                time_extracted = utils.now()
+
                 for entry in page['entries']:
                     obj = suds_to_dict(entry)
                     obj['_sdc_customer_id'] = sdk_client.client_customer_id
@@ -613,7 +618,7 @@ def sync_generic_basic_endpoint(sdk_client, stream_schema, stream, stream_metada
                         bumble_bee.pre_hook = transform_pre_hook
                         record = bumble_bee.transform(obj, discovered_schema)
 
-                        singer.write_record(stream, record)
+                        singer.write_record(stream, record, time_extracted=time_extracted)
                         counter.increment()
 
         start_index += PAGE_SIZE
@@ -621,7 +626,7 @@ def sync_generic_basic_endpoint(sdk_client, stream_schema, stream, stream_metada
             break
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
 
-def sync_generic_endpoint(stream_name, stream_schema, stream_metadata, sdk_client):
+def sync_generic_endpoint(stream_name, stream_metadata, sdk_client):
     campaign_ids = get_campaign_ids(sdk_client)
     if stream_name == 'ads' or stream_name == 'ad_groups':
         if not campaign_ids:
@@ -630,32 +635,29 @@ def sync_generic_endpoint(stream_name, stream_schema, stream_metadata, sdk_clien
 
         sync_campaign_ids_endpoint(sdk_client,
                                    campaign_ids,
-                                   stream_schema,
                                    stream_name,
                                    stream_metadata)
     elif stream_name == 'campaigns' or stream_name == 'accounts':
         sync_generic_basic_endpoint(sdk_client,
-                                    stream_schema,
                                     stream_name,
                                     stream_metadata)
     else:
         raise Exception("Undefined generic endpoint %s", stream_name)
 
-def sync_stream(stream_name, stream_schema, stream_metadata, sdk_client):
+def sync_stream(stream_name, stream_metadata, sdk_client):
     if stream_name in GENERIC_ENDPOINT_MAPPINGS:
-        sync_generic_endpoint(stream_name, stream_schema, stream_metadata, sdk_client)
+        sync_generic_endpoint(stream_name, stream_metadata, sdk_client)
     else:
-        sync_report(stream_name, stream_schema, stream_metadata, sdk_client)
+        sync_report(stream_name, stream_metadata, sdk_client)
 
 def do_sync(properties, sdk_client):
     for catalog in properties['streams']:
         stream_name = catalog.get('stream')
-        stream_schema = catalog.get('schema')
         stream_metadata = metadata.to_map(catalog.get('metadata'))
 
         if stream_metadata.get((), {}).get('selected'):
             LOGGER.info('Syncing stream %s ...', stream_name)
-            sync_stream(stream_name, stream_schema, stream_metadata, sdk_client)
+            sync_stream(stream_name, stream_metadata, sdk_client)
         else:
             LOGGER.info('Skipping stream %s.', stream_name)
 
