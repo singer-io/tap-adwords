@@ -478,13 +478,13 @@ CAMPAIGN_PARTITION_SIZE = 15
 
 def binary_search(l, min_high, max_high, kosher_fn):
     mid = math.ceil((min_high + max_high) / 2)
-    if (min_high == max_high):
+    if min_high == max_high:
         if kosher_fn(l):
             return max_high
         else:
             raise Exception("can't fit {} into partition".format(l))
 
-    if (min_high + 1 == max_high):
+    if min_high + 1 == max_high:
         if kosher_fn(l[0:max_high+1]):
             return max_high
         elif kosher_fn(l[0:min_high+1]):
@@ -494,8 +494,8 @@ def binary_search(l, min_high, max_high, kosher_fn):
 
     if kosher_fn(l[0:mid+1]):
         return binary_search(l, mid, max_high, kosher_fn)
-    else:
-        return binary_search(l, min_high, mid, kosher_fn)
+
+    return binary_search(l, min_high, mid, kosher_fn)
 
 def get_campaign_ids_safe_selectors(sdk_client,
                                     campaign_ids,
@@ -503,9 +503,9 @@ def get_campaign_ids_safe_selectors(sdk_client,
     LOGGER.info("Discovering safe %s selectors for customer %s",
                 stream,
                 sdk_client.client_customer_id)
-    while len(campaign_ids) > 0:
+    while campaign_ids:
         to = binary_search(campaign_ids, 0, len(campaign_ids) - 1, lambda cids: is_campaign_ids_selector_safe(sdk_client, cids, stream))
-        yield(campaign_ids[0:to+1])
+        yield campaign_ids[0:to+1]
         campaign_ids = campaign_ids[to+1:]
 
 def get_field_list(stream_schema, stream, stream_metadata):
@@ -542,7 +542,7 @@ def sync_campaign_ids_endpoint(sdk_client,
 
     LOGGER.info("Syncing %s for customer %s", stream, sdk_client.client_customer_id)
 
-    for campaign_ids in get_campaign_ids_safe_selectors(
+    for cids in get_campaign_ids_safe_selectors(
             sdk_client,
             list(campaign_ids),
             stream):
@@ -550,7 +550,7 @@ def sync_campaign_ids_endpoint(sdk_client,
         while True:
             page = get_campaign_ids_filtered_page(sdk_client,
                                                   field_list,
-                                                  campaign_ids,
+                                                  cids,
                                                   stream,
                                                   start_index)
             if page['totalNumEntries'] > GOOGLE_MAX_RESULTSET_SIZE:
@@ -559,7 +559,7 @@ def sync_campaign_ids_endpoint(sdk_client,
                     GOOGLE_MAX_RESULTSET_SIZE,
                     page['totalNumEntries'],
                     sdk_client.client_customer_id,
-                    campaign_ids))
+                    cids))
             if 'entries' in page:
                 with metrics.record_counter(stream) as counter:
                     time_extracted = utils.now()
