@@ -478,8 +478,6 @@ CAMPAIGN_PARTITION_SIZE = 15
 
 def binary_search(l, min_high, max_high, kosher_fn):
     mid = math.ceil((min_high + max_high) / 2)
-    #print('----------------------------------------------------------')
-    #print("min_high: {}, max_high: {}, mid: {}".format(min_high, max_high, mid))
     if (min_high == max_high):
         if kosher_fn(l):
             return max_high
@@ -506,7 +504,6 @@ def get_campaign_ids_safe_selectors(sdk_client,
                 stream,
                 sdk_client.client_customer_id)
     while len(campaign_ids) > 0:
-        #print("remaining: {}".format(l))
         to = binary_search(campaign_ids, 0, len(campaign_ids) - 1, lambda cids: is_campaign_ids_selector_safe(sdk_client, cids, stream))
         yield(campaign_ids[0:to+1])
         campaign_ids = campaign_ids[to+1:]
