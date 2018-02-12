@@ -472,10 +472,6 @@ def is_campaign_ids_selector_safe(sdk_client, campaign_ids, stream):
     LOGGER.info("Total entries %s", page['totalNumEntries'])
     return page['totalNumEntries'] < GOOGLE_MAX_RESULTSET_SIZE
 
-# Arbitrary window. Would be smarter to do a binary search rather than
-# build up from the bottom.
-CAMPAIGN_PARTITION_SIZE = 15
-
 def binary_search(l, min_high, max_high, kosher_fn):
     mid = math.ceil((min_high + max_high) / 2)
     if min_high == max_high:
