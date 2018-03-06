@@ -30,7 +30,7 @@ import math
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
 PAGE_SIZE = 1000
-VERSION = 'v201708'
+VERSION = 'v201802'
 
 REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
                         "boolean":  {'type': ["null", "boolean"]},
