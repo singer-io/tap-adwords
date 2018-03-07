@@ -377,6 +377,7 @@ def filter_fields_by_stream_name(stream_name, fields_to_sync):
 GOOGLE_MAX_RESULTSET_SIZE = 100000
 
 def get_campaign_ids(sdk_client):
+    return ["288499498"]
     # TODO this could be refactored to reuse some of the other functions
     LOGGER.info("Retrieving campaign ids for customer %s", sdk_client.client_customer_id)
     service_name = GENERIC_ENDPOINT_MAPPINGS['campaigns']['service_name']
@@ -419,6 +420,26 @@ def get_campaign_ids(sdk_client):
 @with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
 def attempt_get_from_service(service_caller, selector):
     return service_caller.get(selector)
+
+
+def set_index(selector, index):
+    selector['paging']['startIndex'] = str(index)
+    return selector
+
+
+def get_page(sdk_client, selector, stream, start_index):
+    service_name = GENERIC_ENDPOINT_MAPPINGS[stream]['service_name']
+    service_caller = sdk_client.GetService(service_name, version=VERSION)
+    selector = set_index(selector, start_index)
+    with metrics.http_request_timer(stream):
+        LOGGER.info("Request %s %s for customer %s using selector %s",
+                    PAGE_SIZE,
+                    stream,
+                    sdk_client.client_customer_id,
+                    selector)
+        page = attempt_get_from_service(service_caller, selector)
+        return page
+
 
 def get_campaign_ids_filtered_page(sdk_client, fields, campaign_ids, stream, start_index):
     service_name = GENERIC_ENDPOINT_MAPPINGS[stream]['service_name']
@@ -476,33 +497,142 @@ def binary_search(l, min_high, max_high, kosher_fn):
     mid = math.ceil((min_high + max_high) / 2)
     if min_high == max_high:
         if kosher_fn(l):
-            return max_high
+            return max_high, True
         else:
-            raise Exception("can't fit {} into partition".format(l))
+            return 0, False
+        #Exception("can't fit {} into partition".format(l))
 
     if min_high + 1 == max_high:
         if kosher_fn(l[0:max_high+1]):
-            return max_high
+            return max_high, True
         elif kosher_fn(l[0:min_high+1]):
-            return min_high
+            return min_high, True
         else:
-            raise Exception("can't fit {} into partition".format(l[0:min_high+1]))
+            return 0, False
+            #raise Exception("can't fit {} into partition".format(l[0:min_high+1]))
 
     if kosher_fn(l[0:mid+1]):
         return binary_search(l, mid, max_high, kosher_fn)
 
     return binary_search(l, min_high, mid, kosher_fn)
 
+def get_campaign_ids_selector(campaign_ids, fields, start_index):
+    return {
+        'fields': fields,
+        'predicates': [
+            {
+                'field': 'BaseCampaignId',
+                'operator': 'IN',
+                'values': [str(campaign_id) for campaign_id in campaign_ids]
+            }
+        ],
+        'paging': {
+            'startIndex': str(start_index),
+            'numberResults': str(PAGE_SIZE)
+        }
+    }
+
+
 def get_campaign_ids_safe_selectors(sdk_client,
                                     campaign_ids,
+                                    fields,
                                     stream):
     LOGGER.info("Discovering safe %s selectors for customer %s",
                 stream,
                 sdk_client.client_customer_id)
     while campaign_ids:
-        to = binary_search(campaign_ids, 0, len(campaign_ids) - 1, lambda cids: is_campaign_ids_selector_safe(sdk_client, cids, stream))
-        yield campaign_ids[0:to+1]
+        # TODO can we make the following operate on selectors?
+        to, success = binary_search(campaign_ids, 0, len(campaign_ids) - 1, lambda cids: is_campaign_ids_selector_safe(sdk_client, cids, stream))
+        campaign_ids_selector = get_campaign_ids_selector(campaign_ids[0:to+1], fields, 0)
+        yield campaign_ids_selector, success
         campaign_ids = campaign_ids[to+1:]
+
+def set_fields(selector, fields):
+    selector['fields'] = fields
+    return selector
+
+# TODO: Refactor this cause its duplicated by get_campaign_ids (and sync_campaign_ids_endpoint)
+def get_ad_group_ids(sdk_client, campaign_ids_selector):
+    LOGGER.info("Retrieving ad group ids for customer %s, selector %s",
+                sdk_client.client_customer_id,
+                campaign_ids_selector)
+    service_name = GENERIC_ENDPOINT_MAPPINGS['ad_groups']['service_name']
+    service_caller = sdk_client.GetService(service_name, version=VERSION)
+    offset = 0
+
+    ad_group_ids = set()
+
+    while True:
+        selector = set_index(campaign_ids_selector, offset)
+        LOGGER.info("Request %s ad groups for customer %s, selector %s",
+                    PAGE_SIZE,
+                    sdk_client.client_customer_id,
+                    selector)
+        # TODO: set_fields to maniuplate the fields to be just ID
+        page = service_caller.get(set_fields(selector, ["Id"]))
+        if page['totalNumEntries'] > GOOGLE_MAX_RESULTSET_SIZE:
+            raise Exception("Too many entries (%s > %s) for customer %s, selector %s",
+                            page['totalNumEntries'],
+                            GOOGLE_MAX_RESULTSET_SIZE,
+                            sdk_client.client_customer_id,
+                            selector)
+        if 'entries' in page:
+            for ad_group_id in [entry['id'] for entry in page['entries']]:
+                ad_group_ids.add(ad_group_id)
+        offset += PAGE_SIZE
+        # selector = set_index(campaign_ids_selector, offset)
+        if offset > int(page['totalNumEntries']):
+            break
+    LOGGER.info("Retrieved %s ad group ids for customer %s. Expected %s.",
+                len(ad_group_ids),
+                sdk_client.client_customer_id,
+                page['totalNumEntries'])
+    return ad_group_ids
+
+
+def get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids):
+    campaign_ids_selector["predicates"].append(
+        {
+            'field': 'AdGroupId',
+            'operator': 'IN',
+            'values': ad_group_ids
+        })
+    return campaign_ids_selector
+
+#TODO: More code duplication
+def is_ad_group_ids_selector_safe(sdk_client, campaign_ids_selector, ad_group_ids, stream):
+    LOGGER.info("Ensuring %s selector safety for ad_group_ids %s", stream, ad_group_ids)
+    selector = get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids)
+    #is_selector_safe(selector)
+    # TODO use set_fields
+    page = get_page(sdk_client, selector, stream, 0)
+    LOGGER.info("Total entries %s", page['totalNumEntries'])
+    return page['totalNumEntries'] < GOOGLE_MAX_RESULTSET_SIZE
+
+
+
+def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
+    # TODO raise if campaign_ids_selector is plural
+    ad_group_ids = list(get_ad_group_ids(sdk_client, campaign_ids_selector))
+    while ad_group_ids:
+        to, success = binary_search(ad_group_ids, 0, len(ad_group_ids) - 1, lambda agids: is_ad_group_ids_selector_safe(sdk_client, campaign_ids_selector, agids, stream))
+        if not success:
+            raise Exception("NOt even binary search can save us")
+        else:
+            yield get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids[0:to+1])
+            ad_group_ids = ad_group_ids[to+1:]
+
+
+# returns starting point selectors (0th page) that may need to then be paged through
+# but all are safe to page through (< GOOGLE_MAX_RESULTSET_SIZE)
+def get_safe_selectors(sdk_client, campaign_ids, fields, stream):
+    for campaign_id_selector, success in get_campaign_ids_safe_selectors(sdk_client, campaign_ids, fields, stream):
+        if success:
+            yield campaign_id_selector
+        else:
+            for selector in get_ad_group_ids_safe_selectors(sdk_client, campaign_id_selector, stream):
+                yield selector
+
 
 def get_field_list(stream_schema, stream, stream_metadata):
     #NB> add synthetic keys
@@ -538,24 +668,27 @@ def sync_campaign_ids_endpoint(sdk_client,
 
     LOGGER.info("Syncing %s for customer %s", stream, sdk_client.client_customer_id)
 
-    for cids in get_campaign_ids_safe_selectors(
+    for selector in get_safe_selectors(
             sdk_client,
             list(campaign_ids),
+            field_list,
             stream):
+
         start_index = 0
         while True:
-            page = get_campaign_ids_filtered_page(sdk_client,
-                                                  field_list,
-                                                  cids,
-                                                  stream,
-                                                  start_index)
+            page = get_page(sdk_client,
+                            selector,
+                            stream,
+                            start_index)
             if page['totalNumEntries'] > GOOGLE_MAX_RESULTSET_SIZE:
-                raise Exception("Too many {} ({} > {}) for customer {}, campaigns {}".format(
+                LOGGER.error("Too many {} ({} > {}) for customer {}, selector {}".format(
                     stream,
                     GOOGLE_MAX_RESULTSET_SIZE,
                     page['totalNumEntries'],
                     sdk_client.client_customer_id,
-                    cids))
+                    selector))
+                raise Exception("my great curl command")
+                    # list comp find basecampign field[0]["cids"])
             if 'entries' in page:
                 with metrics.record_counter(stream) as counter:
                     time_extracted = utils.now()
