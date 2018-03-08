@@ -384,7 +384,6 @@ GOOGLE_MAX_PREDICATE_SIZE = 10000
 
 
 def get_campaign_ids(sdk_client):
-    return ["288499498"]
     # TODO this could be refactored to reuse some of the other functions
     LOGGER.info("Retrieving campaign ids for customer %s", sdk_client.client_customer_id)
     service_name = GENERIC_ENDPOINT_MAPPINGS['campaigns']['service_name']
