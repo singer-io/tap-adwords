@@ -514,7 +514,6 @@ def binary_search(l, min_high, max_high, kosher_fn):
             return max_high, True
         else:
             return 0, False
-        #Exception("can't fit {} into partition".format(l))
 
     if min_high + 1 == max_high:
         if kosher_fn(l[0:max_high+1]):
@@ -523,7 +522,6 @@ def binary_search(l, min_high, max_high, kosher_fn):
             return min_high, True
         else:
             return 0, False
-            #raise Exception("can't fit {} into partition".format(l[0:min_high+1]))
 
     if kosher_fn(l[0:mid+1]):
         return binary_search(l, mid, max_high, kosher_fn)
@@ -614,7 +612,7 @@ def get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids):
         })
     return campaign_ids_selector
 
-#TODO: More code duplication
+
 def is_ad_group_ids_selector_safe(sdk_client, campaign_ids_selector, ad_group_ids, stream):
     LOGGER.info("Ensuring %s selector safety for ad_group_ids %s", stream, ad_group_ids)
 
@@ -628,12 +626,14 @@ def is_ad_group_ids_selector_safe(sdk_client, campaign_ids_selector, ad_group_id
 
 
 def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
-    # TODO raise if campaign_ids_selector is plural
+    if len(campaign_ids_selector['predicates'][0]['values']) > 1:
+        raise Exception("Cannot select ad_group_ids when more than one campaign is used")
+
     ad_group_ids = list(get_ad_group_ids(sdk_client, campaign_ids_selector))
     while ad_group_ids:
         to, success = binary_search(ad_group_ids, 0, len(ad_group_ids) - 1, lambda agids: is_ad_group_ids_selector_safe(sdk_client, campaign_ids_selector, agids, stream))
         if not success:
-            raise Exception("NOt even binary search can save us")
+            raise Exception("Can't fit any partition using ad groups predicate")
         else:
             yield get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids[0:to+1])
             ad_group_ids = ad_group_ids[to+1:]
@@ -697,13 +697,12 @@ def sync_campaign_ids_endpoint(sdk_client,
                             stream,
                             start_index)
             if page['totalNumEntries'] > GOOGLE_MAX_RESULTSET_SIZE:
-                LOGGER.error("Too many {} ({} > {}) for customer {}, selector {}".format(
+                raise Exception("Too many {} ({} > {}) for customer {}, selector {}".format(
                     stream,
                     GOOGLE_MAX_RESULTSET_SIZE,
                     page['totalNumEntries'],
                     sdk_client.client_customer_id,
                     selector))
-                raise Exception("Total entries of returned results are larger than max resultset size")
             if 'entries' in page:
                 with metrics.record_counter(stream) as counter:
                     time_extracted = utils.now()
@@ -722,6 +721,7 @@ def sync_campaign_ids_endpoint(sdk_client,
             if start_index > int(page['totalNumEntries']):
                 break
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
+
 
 def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
     discovered_schema = load_schema(stream)
