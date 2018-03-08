@@ -29,7 +29,7 @@ import math
 
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
-PAGE_SIZE = 1000
+PAGE_SIZE = 10000
 VERSION = 'v201708'
 
 REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
@@ -444,11 +444,12 @@ def get_page(sdk_client, selector, stream, start_index):
     service_caller = sdk_client.GetService(service_name, version=VERSION)
     selector = set_index(selector, start_index)
     with metrics.http_request_timer(stream):
-        LOGGER.info("Request %s %s for customer %s using above selector with startIndex %s",
+        LOGGER.info("Request %s %s for customer %s with startIndex %s using selector %s",
                     PAGE_SIZE,
                     stream,
                     sdk_client.client_customer_id,
-                    selector['paging']['startIndex'])
+                    selector['paging']['startIndex'],
+                    hash(str(selector)))
         page = attempt_get_from_service(service_caller, selector)
         return page
 
@@ -512,7 +513,6 @@ def is_campaign_ids_selector_safe(sdk_client, campaign_ids, stream):
 
 
 def binary_search(l, min_high, max_high, kosher_fn):
-    # TODO use GOOGLE_MAX_PREDICATE_SIZE
     mid = math.ceil((min_high + max_high) / 2)
     if min_high == max_high:
         if kosher_fn(l):
@@ -609,13 +609,14 @@ def get_ad_group_ids(sdk_client, campaign_ids_selector):
 
 
 def get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids):
-    campaign_ids_selector["predicates"].append(
+    campaign_ids_selector_copy = copy.deepcopy(campaign_ids_selector)
+    campaign_ids_selector_copy["predicates"].append(
         {
             'field': 'AdGroupId',
             'operator': 'IN',
             'values': ad_group_ids
         })
-    return campaign_ids_selector
+    return campaign_ids_selector_copy
 
 
 #TODO: More code duplication
@@ -632,9 +633,14 @@ def is_ad_group_ids_selector_safe(sdk_client, campaign_ids_selector, ad_group_id
     return page['totalNumEntries'] < GOOGLE_MAX_START_INDEX
 
 
+total_num_entries_dict = {}
+
 def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
     if len(campaign_ids_selector['predicates'][0]['values']) > 1:
         raise Exception("Cannot select ad_group_ids when more than one campaign is used")
+
+    page = get_page(sdk_client, campaign_ids_selector, stream, 0)
+    total_num_entries_dict["baseCampaignId"] = page['totalNumEntries']
 
     ad_group_ids = list(get_ad_group_ids(sdk_client, campaign_ids_selector))
     while ad_group_ids:
@@ -642,7 +648,10 @@ def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
         if not success:
             raise Exception("Can't fit any partition using ad groups predicate")
         else:
-            yield get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids[0:to+1])
+            selector = get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids[0:to+1])
+            page = get_page(sdk_client, selector, stream, 0)
+            total_num_entries_dict["selector_" + str(hash(str(selector)))] = page['totalNumEntries']
+            yield selector
             ad_group_ids = ad_group_ids[to+1:]
 
 
@@ -727,6 +736,9 @@ def sync_campaign_ids_endpoint(sdk_client,
             start_index += PAGE_SIZE
             if start_index > int(page['totalNumEntries']):
                 break
+    if total_num_entries_dict.get("baseCampaignId") and total_num_entries_dict["baseCampaignId"] != sum([v for k, v in total_num_entries_dict.items() if k.startswith("selector_")]):
+        LOGGER.warning("A difference was found between totalNumEntries of a search using just BaseCampaignId and one using BaseCampaignId and AdGroupId's: %s", total_num_entries_dict)
+
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
 
 
