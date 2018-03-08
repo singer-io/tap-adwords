@@ -737,7 +737,10 @@ def sync_campaign_ids_endpoint(sdk_client,
             if start_index > int(page['totalNumEntries']):
                 break
     if total_num_entries_dict.get("baseCampaignId") and total_num_entries_dict["baseCampaignId"] != sum([v for k, v in total_num_entries_dict.items() if k.startswith("selector_")]):
-        LOGGER.warning("A difference was found between totalNumEntries of a search using just BaseCampaignId and one using BaseCampaignId and AdGroupId's: %s", total_num_entries_dict)
+        sum_of_selectors = sum([v for k, v in total_num_entries_dict.items() if k.startswith("selector_")])
+        LOGGER.warning("A difference was found between totalNumEntries of a search using just BaseCampaignId and one using BaseCampaignId and AdGroupId's.")
+        LOGGER.warning("  BaseCampaignId: %s", total_num_entries_dict["baseCampaignId"])
+        LOGGER.warning("  BaseCampaignId and AdGroupId's: %s", sum_of_selectors)
 
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
 
