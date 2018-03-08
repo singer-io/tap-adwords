@@ -614,9 +614,10 @@ def get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids):
 
 
 def is_ad_group_ids_selector_safe(sdk_client, campaign_ids_selector, ad_group_ids, stream):
-    LOGGER.info("Ensuring %s selector safety for ad_group_ids %s", stream, ad_group_ids)
+    LOGGER.info("Ensuring %s selector safety for ad_group_ids", stream)
 
     if len(ad_group_ids) > GOOGLE_MAX_PREDICATE_SIZE:
+        LOGGER.info("Selector is unsafe: length of ad_group_ids exceeds %s", GOOGLE_MAX_PREDICATE_SIZE)
         return False
 
     selector = get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids)
