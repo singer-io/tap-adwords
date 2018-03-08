@@ -375,6 +375,8 @@ def filter_fields_by_stream_name(stream_name, fields_to_sync):
         raise Exception("unrecognized generic stream_name {}".format(stream_name))
 
 GOOGLE_MAX_RESULTSET_SIZE = 100000
+GOOGLE_MAX_PREDICATE_SIZE = 5000
+
 
 def get_campaign_ids(sdk_client):
     return ["288499498"]
@@ -432,11 +434,18 @@ def get_page(sdk_client, selector, stream, start_index):
     service_caller = sdk_client.GetService(service_name, version=VERSION)
     selector = set_index(selector, start_index)
     with metrics.http_request_timer(stream):
-        LOGGER.info("Request %s %s for customer %s using selector %s",
-                    PAGE_SIZE,
-                    stream,
-                    sdk_client.client_customer_id,
-                    selector)
+        if start_index == 0:
+            LOGGER.info("Request %s %s for customer %s using selector %s",
+                        PAGE_SIZE,
+                        stream,
+                        sdk_client.client_customer_id,
+                        selector)
+        else:
+            LOGGER.info("Request %s %s for customer %s using above selector with startIndex %s",
+                        PAGE_SIZE,
+                        stream,
+                        sdk_client.client_customer_id,
+                        selector['paging']['startIndex'])
         page = attempt_get_from_service(service_caller, selector)
         return page
 
@@ -487,11 +496,16 @@ def get_unfiltered_page(sdk_client, fields, start_index, stream):
         page = attempt_get_from_service(service_caller, selector)
         return page
 
+
 def is_campaign_ids_selector_safe(sdk_client, campaign_ids, stream):
     LOGGER.info("Ensuring %s selector safety for campaigns %s", stream, campaign_ids)
+    if len(campaign_ids) > GOOGLE_MAX_PREDICATE_SIZE:
+        return False
+
     page = get_campaign_ids_filtered_page(sdk_client, ['Id'], campaign_ids, stream, 0)
     LOGGER.info("Total entries %s", page['totalNumEntries'])
     return page['totalNumEntries'] < GOOGLE_MAX_RESULTSET_SIZE
+
 
 def binary_search(l, min_high, max_high, kosher_fn):
     mid = math.ceil((min_high + max_high) / 2)
@@ -515,6 +529,7 @@ def binary_search(l, min_high, max_high, kosher_fn):
         return binary_search(l, mid, max_high, kosher_fn)
 
     return binary_search(l, min_high, mid, kosher_fn)
+
 
 def get_campaign_ids_selector(campaign_ids, fields, start_index):
     return {
@@ -602,13 +617,14 @@ def get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids):
 #TODO: More code duplication
 def is_ad_group_ids_selector_safe(sdk_client, campaign_ids_selector, ad_group_ids, stream):
     LOGGER.info("Ensuring %s selector safety for ad_group_ids %s", stream, ad_group_ids)
+
+    if len(ad_group_ids) > GOOGLE_MAX_PREDICATE_SIZE:
+        return False
+
     selector = get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids)
-    #is_selector_safe(selector)
-    # TODO use set_fields
     page = get_page(sdk_client, selector, stream, 0)
     LOGGER.info("Total entries %s", page['totalNumEntries'])
     return page['totalNumEntries'] < GOOGLE_MAX_RESULTSET_SIZE
-
 
 
 def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
@@ -687,8 +703,7 @@ def sync_campaign_ids_endpoint(sdk_client,
                     page['totalNumEntries'],
                     sdk_client.client_customer_id,
                     selector))
-                raise Exception("my great curl command")
-                    # list comp find basecampign field[0]["cids"])
+                raise Exception("Total entries of returned results are larger than max resultset size")
             if 'entries' in page:
                 with metrics.record_counter(stream) as counter:
                     time_extracted = utils.now()
