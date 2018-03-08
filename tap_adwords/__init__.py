@@ -374,8 +374,13 @@ def filter_fields_by_stream_name(stream_name, fields_to_sync):
     else:
         raise Exception("unrecognized generic stream_name {}".format(stream_name))
 
-GOOGLE_MAX_RESULTSET_SIZE = 100000
-GOOGLE_MAX_PREDICATE_SIZE = 5000
+# You cannot retrieve pages past
+# 100k. https://developers.google.com/adwords/api/docs/appendix/limits#general
+GOOGLE_MAX_START_INDEX = 100000
+
+# You cannot use more than 10k predicate values for IN or NOT_IN
+# operators. http://googleadsdeveloper.blogspot.com/2014/01/ensuring-reliable-performance-with-new.html
+GOOGLE_MAX_PREDICATE_SIZE = 10000
 
 
 def get_campaign_ids(sdk_client):
@@ -401,10 +406,10 @@ def get_campaign_ids(sdk_client):
                     offset,
                     sdk_client.client_customer_id)
         page = service_caller.get(selector)
-        if page['totalNumEntries'] > GOOGLE_MAX_RESULTSET_SIZE:
+        if page['totalNumEntries'] > GOOGLE_MAX_START_INDEX:
             raise Exception("Too many campaigns (%s > %s) for customer %s",
                             page['totalNumEntries'],
-                            GOOGLE_MAX_RESULTSET_SIZE,
+                            GOOGLE_MAX_START_INDEX,
                             sdk_client.client_customer_id)
         if 'entries' in page:
             for campaign_id in [entry['id'] for entry in page['entries']]:
@@ -421,7 +426,12 @@ def get_campaign_ids(sdk_client):
 
 @with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
 def attempt_get_from_service(service_caller, selector):
-    return service_caller.get(selector)
+    try:
+        return service_caller.get(selector)
+    except:
+        # TODO log the service in questions (like AdGroupAds etc.)
+        LOGGER.info("An exception was thrown with selector: %s", selector)
+        raise
 
 
 def set_index(selector, index):
@@ -434,18 +444,11 @@ def get_page(sdk_client, selector, stream, start_index):
     service_caller = sdk_client.GetService(service_name, version=VERSION)
     selector = set_index(selector, start_index)
     with metrics.http_request_timer(stream):
-        if start_index == 0:
-            LOGGER.info("Request %s %s for customer %s using selector %s",
-                        PAGE_SIZE,
-                        stream,
-                        sdk_client.client_customer_id,
-                        selector)
-        else:
-            LOGGER.info("Request %s %s for customer %s using above selector with startIndex %s",
-                        PAGE_SIZE,
-                        stream,
-                        sdk_client.client_customer_id,
-                        selector['paging']['startIndex'])
+        LOGGER.info("Request %s %s for customer %s using above selector with startIndex %s",
+                    PAGE_SIZE,
+                    stream,
+                    sdk_client.client_customer_id,
+                    selector['paging']['startIndex'])
         page = attempt_get_from_service(service_caller, selector)
         return page
 
@@ -498,16 +501,18 @@ def get_unfiltered_page(sdk_client, fields, start_index, stream):
 
 
 def is_campaign_ids_selector_safe(sdk_client, campaign_ids, stream):
-    LOGGER.info("Ensuring %s selector safety for campaigns %s", stream, campaign_ids)
+    LOGGER.info("Ensuring %s selector safety for campaigns", stream)
     if len(campaign_ids) > GOOGLE_MAX_PREDICATE_SIZE:
+        LOGGER.info("Selector is unsafe: length of campaign_ids exceeds %s", GOOGLE_MAX_PREDICATE_SIZE)
         return False
 
     page = get_campaign_ids_filtered_page(sdk_client, ['Id'], campaign_ids, stream, 0)
     LOGGER.info("Total entries %s", page['totalNumEntries'])
-    return page['totalNumEntries'] < GOOGLE_MAX_RESULTSET_SIZE
+    return page['totalNumEntries'] < GOOGLE_MAX_START_INDEX
 
 
 def binary_search(l, min_high, max_high, kosher_fn):
+    # TODO use GOOGLE_MAX_PREDICATE_SIZE
     mid = math.ceil((min_high + max_high) / 2)
     if min_high == max_high:
         if kosher_fn(l):
@@ -583,10 +588,10 @@ def get_ad_group_ids(sdk_client, campaign_ids_selector):
                     selector)
         # TODO: set_fields to maniuplate the fields to be just ID
         page = service_caller.get(set_fields(selector, ["Id"]))
-        if page['totalNumEntries'] > GOOGLE_MAX_RESULTSET_SIZE:
+        if page['totalNumEntries'] > GOOGLE_MAX_START_INDEX:
             raise Exception("Too many entries (%s > %s) for customer %s, selector %s",
                             page['totalNumEntries'],
-                            GOOGLE_MAX_RESULTSET_SIZE,
+                            GOOGLE_MAX_START_INDEX,
                             sdk_client.client_customer_id,
                             selector)
         if 'entries' in page:
@@ -613,6 +618,7 @@ def get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids):
     return campaign_ids_selector
 
 
+#TODO: More code duplication
 def is_ad_group_ids_selector_safe(sdk_client, campaign_ids_selector, ad_group_ids, stream):
     LOGGER.info("Ensuring %s selector safety for ad_group_ids", stream)
 
@@ -623,7 +629,7 @@ def is_ad_group_ids_selector_safe(sdk_client, campaign_ids_selector, ad_group_id
     selector = get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids)
     page = get_page(sdk_client, selector, stream, 0)
     LOGGER.info("Total entries %s", page['totalNumEntries'])
-    return page['totalNumEntries'] < GOOGLE_MAX_RESULTSET_SIZE
+    return page['totalNumEntries'] < GOOGLE_MAX_START_INDEX
 
 
 def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
@@ -641,7 +647,7 @@ def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
 
 
 # returns starting point selectors (0th page) that may need to then be paged through
-# but all are safe to page through (< GOOGLE_MAX_RESULTSET_SIZE)
+# but all are safe to page through (< GOOGLE_MAX_START_INDEX)
 def get_safe_selectors(sdk_client, campaign_ids, fields, stream):
     for campaign_id_selector, success in get_campaign_ids_safe_selectors(sdk_client, campaign_ids, fields, stream):
         if success:
@@ -697,10 +703,10 @@ def sync_campaign_ids_endpoint(sdk_client,
                             selector,
                             stream,
                             start_index)
-            if page['totalNumEntries'] > GOOGLE_MAX_RESULTSET_SIZE:
+            if page['totalNumEntries'] > GOOGLE_MAX_START_INDEX:
                 raise Exception("Too many {} ({} > {}) for customer {}, selector {}".format(
                     stream,
-                    GOOGLE_MAX_RESULTSET_SIZE,
+                    GOOGLE_MAX_START_INDEX,
                     page['totalNumEntries'],
                     sdk_client.client_customer_id,
                     selector))
@@ -742,10 +748,10 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
     start_index = 0
     while True:
         page = get_unfiltered_page(sdk_client, field_list, start_index, stream)
-        if page['totalNumEntries'] > GOOGLE_MAX_RESULTSET_SIZE:
+        if page['totalNumEntries'] > GOOGLE_MAX_START_INDEX:
             raise Exception("Too many %s (%s > %s) for customer %s",
                             stream,
-                            GOOGLE_MAX_RESULTSET_SIZE,
+                            GOOGLE_MAX_START_INDEX,
                             page['totalNumEntries'],
                             sdk_client.client_customer_id)
 
