@@ -500,18 +500,9 @@ def get_unfiltered_page(sdk_client, fields, start_index, stream):
         return page
 
 
-def is_campaign_ids_selector_safe(sdk_client, campaign_ids, stream):
-    LOGGER.info("Ensuring %s selector safety for campaigns", stream)
-    if len(campaign_ids) > GOOGLE_MAX_PREDICATE_SIZE:
-        LOGGER.info("Selector is unsafe: length of campaign_ids exceeds %s", GOOGLE_MAX_PREDICATE_SIZE)
-        return False
-
-    page = get_campaign_ids_filtered_page(sdk_client, ['Id'], campaign_ids, stream, 0)
-    LOGGER.info("Total entries %s", page['totalNumEntries'])
-    return page['totalNumEntries'] < GOOGLE_MAX_START_INDEX
-
-
-def binary_search(l, min_high, max_high, kosher_fn):
+# TODO renaming candidate
+# TODO can kosher_fn be killed?
+def binary_search_impl(l, min_high, max_high, kosher_fn):
     mid = math.ceil((min_high + max_high) / 2)
     if min_high == max_high:
         if kosher_fn(l):
@@ -528,11 +519,38 @@ def binary_search(l, min_high, max_high, kosher_fn):
             return 0, False
 
     if kosher_fn(l[0:mid+1]):
-        return binary_search(l, mid, max_high, kosher_fn)
+        return binary_search_impl(l, mid, max_high, kosher_fn)
 
-    return binary_search(l, min_high, mid, kosher_fn)
+    return binary_search_impl(l, min_high, mid, kosher_fn)
 
 
+def set_selector_predicate_values(selector, predicate_field, predicate_values):
+    my_selector = copy.deepcopy(selector)
+    my_predicate = get_predicate(my_selector, predicate_field)
+    my_predicate['values'] = predicate_values
+    return my_selector
+
+
+# TODO renaming candidate
+def binary_search(selector, predicate_field, kosher_fn):
+    predicate_values = get_predicate_field_values(selector, predicate_field)
+    while predicate_values:
+        to, success = binary_search_impl(predicate_values, 0, len(predicate_values) - 1, kosher_fn)
+        selector = set_selector_predicate_values(selector, predicate_field, predicate_values[0:to+1])
+        yield selector, success
+        predicate_values = predicate_values[to+1:]
+
+
+def get_predicate(selector, predicate_field):
+    return [p
+            for p
+            in selector['predicates']
+            if p['field'] == predicate_field][0]
+
+def get_predicate_field_values(selector, predicate_field):
+    return get_predicate(selector, predicate_field)['values']
+
+# TODO experiment with smaller page size for speed boost?
 def get_campaign_ids_selector(campaign_ids, fields, start_index):
     return {
         'fields': fields,
@@ -550,6 +568,10 @@ def get_campaign_ids_selector(campaign_ids, fields, start_index):
     }
 
 
+def something_something_campaign_ids_lambda(sdk_client, stream, campaign_ids):
+    selector = get_campaign_ids_selector(campaign_ids, ["Id"], 0)
+    return is_selector_safe(sdk_client, stream, selector, 'BaseCampaignId')
+
 def get_campaign_ids_safe_selectors(sdk_client,
                                     campaign_ids,
                                     fields,
@@ -557,12 +579,14 @@ def get_campaign_ids_safe_selectors(sdk_client,
     LOGGER.info("Discovering safe %s selectors for customer %s",
                 stream,
                 sdk_client.client_customer_id)
-    while campaign_ids:
-        # TODO can we make the following operate on selectors?
-        to, success = binary_search(campaign_ids, 0, len(campaign_ids) - 1, lambda cids: is_campaign_ids_selector_safe(sdk_client, cids, stream))
-        campaign_ids_selector = get_campaign_ids_selector(campaign_ids[0:to+1], fields, 0)
-        yield campaign_ids_selector, success
-        campaign_ids = campaign_ids[to+1:]
+
+
+    return binary_search(get_campaign_ids_selector(campaign_ids, fields, 0),
+                         'BaseCampaignId',
+                         lambda cids: something_something_campaign_ids_lambda(sdk_client,
+                                                                              stream,
+                                                                              cids))
+
 
 def set_fields(selector, fields):
     selector['fields'] = fields
@@ -618,21 +642,25 @@ def get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids):
     return campaign_ids_selector_copy
 
 
-#TODO: More code duplication
-def is_ad_group_ids_selector_safe(sdk_client, campaign_ids_selector, ad_group_ids, stream):
-    LOGGER.info("Ensuring %s selector safety for ad_group_ids", stream)
+def is_selector_safe(sdk_client, stream, selector, predicate_field):
+    LOGGER.info("Ensuring %s selector safety for %s", stream, predicate_field)
 
-    if len(ad_group_ids) > GOOGLE_MAX_PREDICATE_SIZE:
-        LOGGER.info("Selector is unsafe: length of ad_group_ids exceeds %s", GOOGLE_MAX_PREDICATE_SIZE)
+    if len(get_predicate_field_values(selector, predicate_field)) > GOOGLE_MAX_PREDICATE_SIZE:
+        LOGGER.info("Selector is unsafe: length of %s values exceeds %s", predicate_field, GOOGLE_MAX_PREDICATE_SIZE)
         return False
 
-    selector = get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids)
     page = get_page(sdk_client, selector, stream, 0)
     LOGGER.info("Total entries %s", page['totalNumEntries'])
     return page['totalNumEntries'] < GOOGLE_MAX_START_INDEX
 
 
+def something_something_ad_group_ids_lambda(sdk_client, stream, campaign_ids_selector, agids):
+    selector = get_ad_group_ids_selector(campaign_ids_selector, agids)
+    return is_selector_safe(sdk_client, stream, selector, 'AdGroupId')
+
+
 total_num_entries_dict = {}
+
 
 def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
     if len(campaign_ids_selector['predicates'][0]['values']) > 1:
@@ -642,16 +670,19 @@ def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
     total_num_entries_dict["baseCampaignId"] = page['totalNumEntries']
 
     ad_group_ids = list(get_ad_group_ids(sdk_client, campaign_ids_selector))
-    while ad_group_ids:
-        to, success = binary_search(ad_group_ids, 0, len(ad_group_ids) - 1, lambda agids: is_ad_group_ids_selector_safe(sdk_client, campaign_ids_selector, agids, stream))
+
+    for selector, success in binary_search(get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids),
+                                           'AdGroupId',
+                                           lambda agids: something_something_ad_group_ids_lambda(sdk_client,
+                                                                                                 stream,
+                                                                                                 campaign_ids_selector,
+                                                                                                 agids)):
         if not success:
             raise Exception("Can't fit any partition using ad groups predicate")
         else:
-            selector = get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids[0:to+1])
             page = get_page(sdk_client, selector, stream, 0)
             total_num_entries_dict["selector_" + str(hash(str(selector)))] = page['totalNumEntries']
             yield selector
-            ad_group_ids = ad_group_ids[to+1:]
 
 
 # returns starting point selectors (0th page) that may need to then be paged through
@@ -706,35 +737,36 @@ def sync_campaign_ids_endpoint(sdk_client,
             stream):
 
         start_index = 0
-        while True:
-            page = get_page(sdk_client,
-                            selector,
-                            stream,
-                            start_index)
-            if page['totalNumEntries'] > GOOGLE_MAX_START_INDEX:
-                raise Exception("Too many {} ({} > {}) for customer {}, selector {}".format(
-                    stream,
-                    GOOGLE_MAX_START_INDEX,
-                    page['totalNumEntries'],
-                    sdk_client.client_customer_id,
-                    selector))
-            if 'entries' in page:
-                with metrics.record_counter(stream) as counter:
-                    time_extracted = utils.now()
 
-                    for entry in page['entries']:
-                        obj = suds_to_dict(entry)
-                        obj['_sdc_customer_id'] = sdk_client.client_customer_id
-                        with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee: #pylint: disable=line-too-long
-                            bumble_bee.pre_hook = transform_pre_hook
-                            record = bumble_bee.transform(obj, discovered_schema)
+        # while True:
+        #     page = get_page(sdk_client,
+        #                     selector,
+        #                     stream,
+        #                     start_index)
+        #     if page['totalNumEntries'] > GOOGLE_MAX_START_INDEX:
+        #         raise Exception("Too many {} ({} > {}) for customer {}, selector {}".format(
+        #             stream,
+        #             GOOGLE_MAX_START_INDEX,
+        #             page['totalNumEntries'],
+        #             sdk_client.client_customer_id,
+        #             selector))
+        #     if 'entries' in page:
+        #         with metrics.record_counter(stream) as counter:
+        #             time_extracted = utils.now()
 
-                            singer.write_record(stream, record, time_extracted=time_extracted)
-                            counter.increment()
+        #             for entry in page['entries']:
+        #                 obj = suds_to_dict(entry)
+        #                 obj['_sdc_customer_id'] = sdk_client.client_customer_id
+        #                 with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee: #pylint: disable=line-too-long
+        #                     bumble_bee.pre_hook = transform_pre_hook
+        #                     record = bumble_bee.transform(obj, discovered_schema)
 
-            start_index += PAGE_SIZE
-            if start_index > int(page['totalNumEntries']):
-                break
+        #                     singer.write_record(stream, record, time_extracted=time_extracted)
+        #                     counter.increment()
+
+        #     start_index += PAGE_SIZE
+        #     if start_index > int(page['totalNumEntries']):
+        #         break
     if total_num_entries_dict.get("baseCampaignId") and total_num_entries_dict["baseCampaignId"] != sum([v for k, v in total_num_entries_dict.items() if k.startswith("selector_")]):
         sum_of_selectors = sum([v for k, v in total_num_entries_dict.items() if k.startswith("selector_")])
         LOGGER.warning("A difference was found between totalNumEntries of a search using just BaseCampaignId and one using BaseCampaignId and AdGroupId's.")
