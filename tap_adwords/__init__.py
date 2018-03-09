@@ -384,12 +384,11 @@ GOOGLE_MAX_PREDICATE_SIZE = 10000
 
 
 @with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
-def attempt_get_from_service(service_caller, selector):
+def attempt_get_from_service(service_name, service_caller, selector):
     try:
         return service_caller.get(selector)
     except:
-        # TODO log the service in questions (like AdGroupAds etc.)
-        LOGGER.info("An exception was thrown with selector: %s", selector)
+        LOGGER.info("An exception was thrown in %s with selector: %s", service_name, selector)
         raise
 
 
@@ -398,6 +397,7 @@ def set_index(selector, index):
     return selector
 
 
+# TODO refactor get_unfiltered_page
 def get_page(sdk_client, selector, stream, start_index):
     service_name = GENERIC_ENDPOINT_MAPPINGS[stream]['service_name']
     service_caller = sdk_client.GetService(service_name, version=VERSION)
@@ -409,37 +409,11 @@ def get_page(sdk_client, selector, stream, start_index):
                     sdk_client.client_customer_id,
                     selector['paging']['startIndex'],
                     hash(str(selector)))
-        page = attempt_get_from_service(service_caller, selector)
+        page = attempt_get_from_service(service_name, service_caller, selector)
         return page
 
 
-def get_campaign_ids_filtered_page(sdk_client, fields, campaign_ids, stream, start_index):
-    service_name = GENERIC_ENDPOINT_MAPPINGS[stream]['service_name']
-    service_caller = sdk_client.GetService(service_name, version=VERSION)
-    selector = {
-        'fields': fields,
-        'predicates': [
-            {
-                'field': 'BaseCampaignId',
-                'operator': 'IN',
-                'values': [str(campaign_id) for campaign_id in campaign_ids]
-            }
-        ],
-        'paging': {
-            'startIndex': str(start_index),
-            'numberResults': str(PAGE_SIZE)
-        }
-    }
-    with metrics.http_request_timer(stream):
-        LOGGER.info("Request %s %s from start_index %s for customer %s, campaigns %s",
-                    stream,
-                    PAGE_SIZE,
-                    start_index,
-                    sdk_client.client_customer_id,
-                    campaign_ids)
-        page = attempt_get_from_service(service_caller, selector)
-        return page
-
+# TODO refactor get_page
 def get_unfiltered_page(sdk_client, fields, start_index, stream):
     service_name = GENERIC_ENDPOINT_MAPPINGS[stream]['service_name']
     service_caller = sdk_client.GetService(service_name, version=VERSION)
@@ -456,7 +430,7 @@ def get_unfiltered_page(sdk_client, fields, start_index, stream):
                     stream,
                     start_index,
                     sdk_client.client_customer_id)
-        page = attempt_get_from_service(service_caller, selector)
+        page = attempt_get_from_service(service_name, service_caller, selector)
         return page
 
 
@@ -510,7 +484,7 @@ def get_predicate(selector, predicate_field):
 def get_predicate_field_values(selector, predicate_field):
     return get_predicate(selector, predicate_field)['values']
 
-# TODO experiment with smaller page size for speed boost?
+
 def get_campaign_ids_selector(campaign_ids, fields, start_index):
     return {
         'fields': fields,
@@ -552,7 +526,7 @@ def set_fields(selector, fields):
     selector['fields'] = fields
     return selector
 
-# TODO: Refactor this cause its duplicated by get_campaign_ids (and sync_campaign_ids_endpoint)
+
 def get_selector_ids(sdk_client, stream, selector):
     LOGGER.info("Retrieving selector ids for customer %s, selector hash %s",
                 sdk_client.client_customer_id,
