@@ -383,46 +383,6 @@ GOOGLE_MAX_START_INDEX = 100000
 GOOGLE_MAX_PREDICATE_SIZE = 10000
 
 
-def get_campaign_ids(sdk_client):
-    # TODO this could be refactored to reuse some of the other functions
-    LOGGER.info("Retrieving campaign ids for customer %s", sdk_client.client_customer_id)
-    service_name = GENERIC_ENDPOINT_MAPPINGS['campaigns']['service_name']
-    service_caller = sdk_client.GetService(service_name, version=VERSION)
-    offset = 0
-    selector = {
-        'fields': ['Id'],
-        'paging': {
-            'startIndex': str(offset),
-            'numberResults': str(PAGE_SIZE)
-        }
-    }
-
-    campaign_ids = set()
-
-    while True:
-        LOGGER.info("Request %s campaign ids from offset %s for customer %s",
-                    PAGE_SIZE,
-                    offset,
-                    sdk_client.client_customer_id)
-        page = service_caller.get(selector)
-        if page['totalNumEntries'] > GOOGLE_MAX_START_INDEX:
-            raise Exception("Too many campaigns (%s > %s) for customer %s",
-                            page['totalNumEntries'],
-                            GOOGLE_MAX_START_INDEX,
-                            sdk_client.client_customer_id)
-        if 'entries' in page:
-            for campaign_id in [entry['id'] for entry in page['entries']]:
-                campaign_ids.add(campaign_id)
-        offset += PAGE_SIZE
-        selector['paging']['startIndex'] = str(offset)
-        if offset > int(page['totalNumEntries']):
-            break
-    LOGGER.info("Retrieved %s campaign ids for customer %s. Expected %s.",
-                len(campaign_ids),
-                sdk_client.client_customer_id,
-                page['totalNumEntries'])
-    return campaign_ids
-
 @with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
 def attempt_get_from_service(service_caller, selector):
     try:
@@ -593,42 +553,40 @@ def set_fields(selector, fields):
     return selector
 
 # TODO: Refactor this cause its duplicated by get_campaign_ids (and sync_campaign_ids_endpoint)
-def get_ad_group_ids(sdk_client, campaign_ids_selector):
-    LOGGER.info("Retrieving ad group ids for customer %s, selector %s",
+def get_selector_ids(sdk_client, stream, selector):
+    LOGGER.info("Retrieving selector ids for customer %s, selector hash %s",
                 sdk_client.client_customer_id,
-                campaign_ids_selector)
-    service_name = GENERIC_ENDPOINT_MAPPINGS['ad_groups']['service_name']
+                hash(str(selector)))
+    service_name = GENERIC_ENDPOINT_MAPPINGS[stream]['service_name']
     service_caller = sdk_client.GetService(service_name, version=VERSION)
     offset = 0
 
-    ad_group_ids = set()
+    selector_ids = set()
 
     while True:
-        selector = set_index(campaign_ids_selector, offset)
-        LOGGER.info("Request %s ad groups for customer %s, selector %s",
+        selector = set_index(selector, offset)
+        LOGGER.info("Request %s selector ids for customer %s, selector hash %s",
                     PAGE_SIZE,
                     sdk_client.client_customer_id,
-                    selector)
-        # TODO: set_fields to maniuplate the fields to be just ID
+                    hash(str(selector)))
         page = service_caller.get(set_fields(selector, ["Id"]))
         if page['totalNumEntries'] > GOOGLE_MAX_START_INDEX:
-            raise Exception("Too many entries (%s > %s) for customer %s, selector %s",
-                            page['totalNumEntries'],
-                            GOOGLE_MAX_START_INDEX,
-                            sdk_client.client_customer_id,
-                            selector)
+            raise Exception("Too many entries (%s > %s) for customer %s, selector hash %s" % (
+                page['totalNumEntries'],
+                GOOGLE_MAX_START_INDEX,
+                sdk_client.client_customer_id,
+                hash(str(selector))))
         if 'entries' in page:
-            for ad_group_id in [entry['id'] for entry in page['entries']]:
-                ad_group_ids.add(ad_group_id)
+            for selector_id in [entry['id'] for entry in page['entries']]:
+                selector_ids.add(selector_id)
         offset += PAGE_SIZE
-        # selector = set_index(campaign_ids_selector, offset)
         if offset > int(page['totalNumEntries']):
             break
-    LOGGER.info("Retrieved %s ad group ids for customer %s. Expected %s.",
-                len(ad_group_ids),
+    LOGGER.info("Retrieved %s selector ids for customer %s. Expected %s.",
+                len(selector_ids),
                 sdk_client.client_customer_id,
                 page['totalNumEntries'])
-    return ad_group_ids
+    return selector_ids
 
 
 def get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids):
@@ -669,7 +627,7 @@ def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
     page = get_page(sdk_client, campaign_ids_selector, stream, 0)
     total_num_entries_dict["baseCampaignId"] = page['totalNumEntries']
 
-    ad_group_ids = list(get_ad_group_ids(sdk_client, campaign_ids_selector))
+    ad_group_ids = list(get_selector_ids(sdk_client, 'ad_groups', campaign_ids_selector))
 
     for selector, success in binary_search(get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids),
                                            'AdGroupId',
@@ -821,8 +779,16 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
 
 def sync_generic_endpoint(stream_name, stream_metadata, sdk_client):
-    campaign_ids = get_campaign_ids(sdk_client)
     if stream_name == 'ads' or stream_name == 'ad_groups':
+        selector = {
+            'fields': ['Id'],
+            'paging': {
+                'startIndex': str(0),
+                'numberResults': str(PAGE_SIZE)
+            }
+        }
+        campaign_ids = get_selector_ids(sdk_client, "campaigns", selector)
+
         if not campaign_ids:
             LOGGER.info("No %s for customer %s", stream_name, sdk_client.client_customer_id)
             return
