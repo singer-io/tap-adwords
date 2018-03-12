@@ -494,7 +494,7 @@ def get_campaign_ids_safe_selectors(sdk_client,
                                                                     stream,
                                                                     cids)
     start = get_campaign_ids_selector(campaign_ids, fields, 0)
-    if stahst(campaign_ids):
+    if is_campaign_ids_safe_lambda(campaign_ids):
         return start, True
     else:
         return binary_search(start,
@@ -703,15 +703,15 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
 
     LOGGER.info("Syncing %s for customer %s", stream, sdk_client.client_customer_id)
 
+    start_index = 0
     selector = {
-        'fields': fields,
+        'fields': field_list,
         'paging': {
             'startIndex': str(start_index),
             'numberResults': str(PAGE_SIZE)
         }
     }
 
-    start_index = 0
     while True:
         page = get_page(sdk_client, selector, stream, start_index)
         if page['totalNumEntries'] > GOOGLE_MAX_START_INDEX:
