@@ -651,35 +651,35 @@ def sync_campaign_ids_endpoint(sdk_client,
 
         start_index = 0
 
-        # while True:
-        #     page = get_page(sdk_client,
-        #                     selector,
-        #                     stream,
-        #                     start_index)
-        #     if page['totalNumEntries'] > GOOGLE_MAX_START_INDEX:
-        #         raise Exception("Too many {} ({} > {}) for customer {}, selector {}".format(
-        #             stream,
-        #             GOOGLE_MAX_START_INDEX,
-        #             page['totalNumEntries'],
-        #             sdk_client.client_customer_id,
-        #             selector))
-        #     if 'entries' in page:
-        #         with metrics.record_counter(stream) as counter:
-        #             time_extracted = utils.now()
+        while True:
+            page = get_page(sdk_client,
+                            selector,
+                            stream,
+                            start_index)
+            if page['totalNumEntries'] > GOOGLE_MAX_START_INDEX:
+                raise Exception("Too many {} ({} > {}) for customer {}, selector {}".format(
+                    stream,
+                    GOOGLE_MAX_START_INDEX,
+                    page['totalNumEntries'],
+                    sdk_client.client_customer_id,
+                    selector))
+            if 'entries' in page:
+                with metrics.record_counter(stream) as counter:
+                    time_extracted = utils.now()
 
-        #             for entry in page['entries']:
-        #                 obj = suds_to_dict(entry)
-        #                 obj['_sdc_customer_id'] = sdk_client.client_customer_id
-        #                 with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee: #pylint: disable=line-too-long
-        #                     bumble_bee.pre_hook = transform_pre_hook
-        #                     record = bumble_bee.transform(obj, discovered_schema)
+                    for entry in page['entries']:
+                        obj = suds_to_dict(entry)
+                        obj['_sdc_customer_id'] = sdk_client.client_customer_id
+                        with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee: #pylint: disable=line-too-long
+                            bumble_bee.pre_hook = transform_pre_hook
+                            record = bumble_bee.transform(obj, discovered_schema)
 
-        #                     singer.write_record(stream, record, time_extracted=time_extracted)
-        #                     counter.increment()
+                            singer.write_record(stream, record, time_extracted=time_extracted)
+                            counter.increment()
 
-        #     start_index += PAGE_SIZE
-        #     if start_index > int(page['totalNumEntries']):
-        #         break
+            start_index += PAGE_SIZE
+            if start_index > int(page['totalNumEntries']):
+                break
     if total_num_entries_dict.get("baseCampaignId") and total_num_entries_dict["baseCampaignId"] != sum([v for k, v in total_num_entries_dict.items() if k.startswith("selector_")]):
         sum_of_selectors = sum([v for k, v in total_num_entries_dict.items() if k.startswith("selector_")])
         LOGGER.warning("A difference was found between totalNumEntries of a search using just BaseCampaignId and one using BaseCampaignId and AdGroupId's.")
