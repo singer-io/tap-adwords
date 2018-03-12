@@ -412,6 +412,7 @@ def get_page(sdk_client, selector, stream, start_index):
         return page
 
 
+#pylint: disable=too-many-return-statements
 def binary_search(l, min_high, max_high, kosher_fn):
     mid = math.ceil((min_high + max_high) / 2)
     if min_high == max_high:
@@ -670,7 +671,7 @@ def sync_campaign_ids_endpoint(sdk_client,
                     for entry in page['entries']:
                         obj = suds_to_dict(entry)
                         obj['_sdc_customer_id'] = sdk_client.client_customer_id
-                        with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee: #pylint: disable=line-too-long
+                        with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
                             bumble_bee.pre_hook = transform_pre_hook
                             record = bumble_bee.transform(obj, discovered_schema)
 
@@ -728,7 +729,7 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
                 for entry in page['entries']:
                     obj = suds_to_dict(entry)
                     obj['_sdc_customer_id'] = sdk_client.client_customer_id
-                    with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee: #pylint: disable=line-too-long
+                    with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
                         bumble_bee.pre_hook = transform_pre_hook
                         record = bumble_bee.transform(obj, discovered_schema)
 
@@ -891,12 +892,12 @@ def check_selected_fields(stream, field_list, sdk_client):
                         .format("\n\t".join(errors)))
 
 def do_discover_reports(sdk_client):
-    url = 'https://adwords.google.com/api/adwords/reportdownload/{}/reportDefinition.xsd'.format(VERSION) #pylint: disable=line-too-long
+    url = 'https://adwords.google.com/api/adwords/reportdownload/{}/reportDefinition.xsd'.format(VERSION)
     xsd = request_xsd(url)
     root = ET.fromstring(xsd)
     nodes = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
 
-    stream_names = [p.attrib['value'] for p in nodes if p.attrib['value'] in VERIFIED_REPORTS] #pylint: disable=line-too-long
+    stream_names = [p.attrib['value'] for p in nodes if p.attrib['value'] in VERIFIED_REPORTS]
     streams = []
     LOGGER.info("Starting report discovery")
     for stream_name in stream_names:
