@@ -485,7 +485,7 @@ def get_campaign_ids_safe_selectors(sdk_client,
                                                                     cids)
     start = get_campaign_ids_selector(campaign_ids, fields, 0)
     if is_campaign_ids_safe_lambda(campaign_ids):
-        return start, True
+        yield start, True
 
     return iter_safe_selectors(start,
                                'BaseCampaignId',
