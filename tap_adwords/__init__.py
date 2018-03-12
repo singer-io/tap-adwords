@@ -412,7 +412,7 @@ def get_page(sdk_client, selector, stream, start_index):
         return page
 
 
-def binary_search_impl(l, min_high, max_high, kosher_fn):
+def binary_search(l, min_high, max_high, kosher_fn):
     mid = math.ceil((min_high + max_high) / 2)
     if min_high == max_high:
         if kosher_fn(l):
@@ -429,9 +429,9 @@ def binary_search_impl(l, min_high, max_high, kosher_fn):
             return 0, False
 
     if kosher_fn(l[0:mid+1]):
-        return binary_search_impl(l, mid, max_high, kosher_fn)
+        return binary_search(l, mid, max_high, kosher_fn)
     else:
-        return binary_search_impl(l, min_high, mid, kosher_fn)
+        return binary_search(l, min_high, mid, kosher_fn)
 
 
 def set_selector_predicate_values(selector, predicate_field, predicate_values):
@@ -441,10 +441,10 @@ def set_selector_predicate_values(selector, predicate_field, predicate_values):
     return my_selector
 
 
-def binary_search(selector, predicate_field, kosher_fn):
+def iter_safe_selectors(selector, predicate_field, kosher_fn):
     predicate_values = get_predicate_field_values(selector, predicate_field)
     while predicate_values:
-        to, success = binary_search_impl(predicate_values, 0, len(predicate_values) - 1, kosher_fn)
+        to, success = binary_search(predicate_values, 0, len(predicate_values) - 1, kosher_fn)
         selector = set_selector_predicate_values(selector, predicate_field, predicate_values[0:to+1])
         yield selector, success
         predicate_values = predicate_values[to+1:]
@@ -497,9 +497,9 @@ def get_campaign_ids_safe_selectors(sdk_client,
     if is_campaign_ids_safe_lambda(campaign_ids):
         return start, True
     else:
-        return binary_search(start,
-                             'BaseCampaignId',
-                             is_campaign_ids_safe_lambda)
+        return iter_safe_selectors(start,
+                                   'BaseCampaignId',
+                                   is_campaign_ids_safe_lambda)
 
 
 def set_fields(selector, fields):
@@ -583,12 +583,12 @@ def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
 
     ad_group_ids = list(get_selector_ids(sdk_client, 'ad_groups', campaign_ids_selector))
 
-    for selector, success in binary_search(get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids),
-                                           'AdGroupId',
-                                           lambda agids: is_ad_group_ids_safe(sdk_client,
-                                                                              stream,
-                                                                              campaign_ids_selector,
-                                                                              agids)):
+    for selector, success in iter_safe_selectors(get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids),
+                                                 'AdGroupId',
+                                                 lambda agids: is_ad_group_ids_safe(sdk_client,
+                                                                                    stream,
+                                                                                    campaign_ids_selector,
+                                                                                    agids)):
         if not success:
             raise Exception("Can't fit any partition using ad groups predicate")
         else:
