@@ -417,21 +417,21 @@ def binary_search(l, min_high, max_high, kosher_fn):
     if min_high == max_high:
         if kosher_fn(l):
             return max_high, True
-        else:
-            return 0, False
+
+        return 0, False
 
     if min_high + 1 == max_high:
         if kosher_fn(l[0:max_high+1]):
             return max_high, True
         elif kosher_fn(l[0:min_high+1]):
             return min_high, True
-        else:
-            return 0, False
+
+        return 0, False
 
     if kosher_fn(l[0:mid+1]):
         return binary_search(l, mid, max_high, kosher_fn)
-    else:
-        return binary_search(l, min_high, mid, kosher_fn)
+
+    return binary_search(l, min_high, mid, kosher_fn)
 
 
 def set_selector_predicate_values(selector, predicate_field, predicate_values):
@@ -496,10 +496,10 @@ def get_campaign_ids_safe_selectors(sdk_client,
     start = get_campaign_ids_selector(campaign_ids, fields, 0)
     if is_campaign_ids_safe_lambda(campaign_ids):
         return start, True
-    else:
-        return iter_safe_selectors(start,
-                                   'BaseCampaignId',
-                                   is_campaign_ids_safe_lambda)
+
+    return iter_safe_selectors(start,
+                               'BaseCampaignId',
+                               is_campaign_ids_safe_lambda)
 
 
 def set_fields(selector, fields):
