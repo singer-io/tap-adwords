@@ -130,7 +130,6 @@ def get_abs_path(path):
 def load_schema(entity):
     return utils.load_json(get_abs_path("schemas/{}.json".format(entity)))
 
-
 def load_metadata(entity):
     return utils.load_json(get_abs_path("metadata/{}.json".format(entity)))
 
@@ -382,7 +381,6 @@ GOOGLE_MAX_START_INDEX = 100000
 # operators. http://googleadsdeveloper.blogspot.com/2014/01/ensuring-reliable-performance-with-new.html
 GOOGLE_MAX_PREDICATE_SIZE = 10000
 
-
 @with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
 def attempt_get_from_service(service_name, service_caller, selector):
     try:
@@ -391,11 +389,9 @@ def attempt_get_from_service(service_name, service_caller, selector):
         LOGGER.info("An exception was thrown in %s with selector: %s", service_name, selector)
         raise
 
-
 def set_index(selector, index):
     selector['paging']['startIndex'] = str(index)
     return selector
-
 
 def get_page(sdk_client, selector, stream, start_index):
     service_name = GENERIC_ENDPOINT_MAPPINGS[stream]['service_name']
@@ -410,7 +406,6 @@ def get_page(sdk_client, selector, stream, start_index):
                     hash(str(selector)))
         page = attempt_get_from_service(service_name, service_caller, selector)
         return page
-
 
 #pylint: disable=too-many-return-statements
 def binary_search(l, min_high, max_high, kosher_fn):
@@ -434,13 +429,11 @@ def binary_search(l, min_high, max_high, kosher_fn):
 
     return binary_search(l, min_high, mid, kosher_fn)
 
-
 def set_selector_predicate_values(selector, predicate_field, predicate_values):
     my_selector = copy.deepcopy(selector)
     my_predicate = get_predicate(my_selector, predicate_field)
     my_predicate['values'] = predicate_values
     return my_selector
-
 
 def iter_safe_selectors(selector, predicate_field, kosher_fn):
     predicate_values = get_predicate_field_values(selector, predicate_field)
@@ -450,7 +443,6 @@ def iter_safe_selectors(selector, predicate_field, kosher_fn):
         yield selector, success
         predicate_values = predicate_values[to+1:]
 
-
 def get_predicate(selector, predicate_field):
     return [p
             for p
@@ -459,7 +451,6 @@ def get_predicate(selector, predicate_field):
 
 def get_predicate_field_values(selector, predicate_field):
     return get_predicate(selector, predicate_field)['values']
-
 
 def get_campaign_ids_selector(campaign_ids, fields, start_index):
     return {
@@ -477,7 +468,6 @@ def get_campaign_ids_selector(campaign_ids, fields, start_index):
         }
     }
 
-
 def is_campaign_ids_safe(sdk_client, stream, campaign_ids):
     selector = get_campaign_ids_selector(campaign_ids, ["Id"], 0)
     return is_selector_safe(sdk_client, stream, selector, 'BaseCampaignId')
@@ -490,7 +480,6 @@ def get_campaign_ids_safe_selectors(sdk_client,
                 stream,
                 sdk_client.client_customer_id)
 
-
     is_campaign_ids_safe_lambda = lambda cids: is_campaign_ids_safe(sdk_client,
                                                                     stream,
                                                                     cids)
@@ -502,11 +491,9 @@ def get_campaign_ids_safe_selectors(sdk_client,
                                'BaseCampaignId',
                                is_campaign_ids_safe_lambda)
 
-
 def set_fields(selector, fields):
     selector['fields'] = fields
     return selector
-
 
 def get_selector_ids(sdk_client, stream, selector):
     LOGGER.info("Retrieving selector ids for customer %s, selector hash %s",
@@ -543,7 +530,6 @@ def get_selector_ids(sdk_client, stream, selector):
                 page['totalNumEntries'])
     return selector_ids
 
-
 def get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids):
     campaign_ids_selector_copy = copy.deepcopy(campaign_ids_selector)
     campaign_ids_selector_copy["predicates"].append(
@@ -553,7 +539,6 @@ def get_ad_group_ids_selector(campaign_ids_selector, ad_group_ids):
             'values': ad_group_ids
         })
     return campaign_ids_selector_copy
-
 
 def is_selector_safe(sdk_client, stream, selector, predicate_field):
     LOGGER.info("Ensuring %s selector safety for %s", stream, predicate_field)
@@ -566,14 +551,11 @@ def is_selector_safe(sdk_client, stream, selector, predicate_field):
     LOGGER.info("Total entries %s", page['totalNumEntries'])
     return page['totalNumEntries'] < GOOGLE_MAX_START_INDEX
 
-
 def is_ad_group_ids_safe(sdk_client, stream, campaign_ids_selector, agids):
     selector = get_ad_group_ids_selector(campaign_ids_selector, agids)
     return is_selector_safe(sdk_client, stream, selector, 'AdGroupId')
 
-
 total_num_entries_dict = {}
-
 
 def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
     if len(campaign_ids_selector['predicates'][0]['values']) > 1:
@@ -597,7 +579,6 @@ def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
             total_num_entries_dict["selector_" + str(hash(str(selector)))] = page['totalNumEntries']
             yield selector
 
-
 # returns starting point selectors (0th page) that need to then be
 # paged through but all are safe to page through (<
 # GOOGLE_MAX_START_INDEX)
@@ -608,7 +589,6 @@ def get_safe_selectors(sdk_client, campaign_ids, fields, stream):
         else:
             for selector in get_ad_group_ids_safe_selectors(sdk_client, campaign_id_selector, stream):
                 yield selector
-
 
 def get_field_list(stream_schema, stream, stream_metadata):
     #NB> add synthetic keys
@@ -688,7 +668,6 @@ def sync_campaign_ids_endpoint(sdk_client,
         LOGGER.warning("  BaseCampaignId and AdGroupId's: %s", sum_of_selectors)
 
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
-
 
 def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
     discovered_schema = load_schema(stream)
@@ -822,7 +801,6 @@ def create_field_metadata_for_report(stream, fields, field_name_lookup):
         else:
             mdata = metadata.write(mdata, breadcrumb, 'inclusion', 'available')
 
-
     if stream == 'GEO_PERFORMANCE_REPORT':
         # Requests for this report that don't include countryTerritory
         # fail with an empty 400. There's no evidence for this in the
@@ -841,7 +819,6 @@ def create_schema_for_report(stream, sdk_client):
         field_name_lookup[field['fieldName']] = str(field['xmlAttributeName'])
         report_properties[field['xmlAttributeName']] = {'description': field['displayFieldName']}
         report_properties[field['xmlAttributeName']].update(create_type_map(field['fieldType']))
-
 
     if stream == 'AD_PERFORMANCE_REPORT':
         # The data for this field is "image/jpeg" etc. However, the
@@ -909,7 +886,6 @@ def do_discover_reports(sdk_client):
 
     LOGGER.info("Report discovery complete")
     return streams
-
 
 def do_discover_generic_endpoints():
     streams = []
