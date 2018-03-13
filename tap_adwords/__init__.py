@@ -488,9 +488,9 @@ def get_campaign_ids_safe_selectors(sdk_client,
     if is_campaign_ids_safe_lambda(campaign_ids):
         yield start, True
 
-    return iter_safe_selectors(start,
-                               'BaseCampaignId',
-                               is_campaign_ids_safe_lambda)
+    yield from iter_safe_selectors(start,
+                                   'BaseCampaignId',
+                                   is_campaign_ids_safe_lambda)
 
 def set_fields(selector, fields):
     selector['fields'] = fields
