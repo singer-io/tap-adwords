@@ -68,11 +68,17 @@
                         "string"
                       ]
                     },
-                    "evidenceText": {
+                    "evidenceTextList": {
                       "type": [
                         "null",
-                        "string"
-                      ]
+                        "array"
+                      ],
+                      "items": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
                     }
                   }
                 }
@@ -84,6 +90,12 @@
                 ]
               },
               "policyTopicId": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "policyTopicHelpCenterUrl": {
                 "type": [
                   "null",
                   "string"
