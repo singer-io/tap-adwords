@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.0
+  * Fixes a bug in selector based code
+  * Upgrades the Adwords API version used from v201708 to v201802 [#21](https://github.com/singer-io/tap-adwords/pull/21)
+
 ## 1.2.1
   * Refactors code to be more selector focused and removes some duplication [#23](https://github.com/singer-io/tap-adwords/pull/23)
 
