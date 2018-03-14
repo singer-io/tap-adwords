@@ -29,8 +29,9 @@ import math
 
 LOGGER = singer.get_logger()
 SESSION = requests.Session()
+
 PAGE_SIZE = 10000
-VERSION = 'v201708'
+VERSION = 'v201802'
 
 REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
                         "boolean":  {'type': ["null", "boolean"]},
@@ -487,9 +488,9 @@ def get_campaign_ids_safe_selectors(sdk_client,
     if is_campaign_ids_safe_lambda(campaign_ids):
         yield start, True
 
-    return iter_safe_selectors(start,
-                               'BaseCampaignId',
-                               is_campaign_ids_safe_lambda)
+    yield from iter_safe_selectors(start,
+                                   'BaseCampaignId',
+                                   is_campaign_ids_safe_lambda)
 
 def set_fields(selector, fields):
     selector['fields'] = fields
