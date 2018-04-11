@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.1
+  * Reverts a change to set the default page size of Adwords responses back to 1000 [#26](https://github.com/singer-io/tap-adwords/pull/26)
+
 ## 1.3.0
   * Fixes a bug in selector based code
   * Upgrades the Adwords API version used from v201708 to v201802 [#21](https://github.com/singer-io/tap-adwords/pull/21)
