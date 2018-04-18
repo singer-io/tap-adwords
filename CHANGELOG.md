@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.3
+  * Allows the downloading of Reports to happen as a stream to improve memory consumption [#28](https://github.com/singer-io/tap-adwords/pull/28)
+
+## 1.3.2
+  * Adds the Keywordless Query Report [#27](https://github.com/singer-io/tap-adwords/pull/27)
+
 ## 1.3.1
   * Reverts a change to set the default page size of Adwords responses back to 1000 [#26](https://github.com/singer-io/tap-adwords/pull/26)
 
