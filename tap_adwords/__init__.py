@@ -219,14 +219,17 @@ def sync_report(stream_name, stream_metadata, sdk_client):
         start_date = start_date+relativedelta(days=1)
     LOGGER.info("Done syncing the %s report for customer_id %s", stream_name, customer_id)
 
-def parse_csv_string(csv_string):
-    string_buffer = io.StringIO(csv_string)
-    reader = csv.reader(string_buffer)
-    rows = [row for row in reader]
+def parse_csv_stream(csv_stream):
+    # Wrap the binary stream in a utf-8 stream
+    tw = io.TextIOWrapper(csv_stream, encoding='utf-8')
 
-    headers = rows[0]
-    values = rows[1:]
-    return headers, values
+    # Read a single line into a String, and parse the headers as a CSV
+    headers = csv.reader(io.StringIO(tw.readline()))
+    header_array = [f for f in headers][0]
+
+    # Create another CSV reader for the rest of the data
+    csv_reader = csv.reader(tw)
+    return header_array, csv_reader
 
 def get_xml_attribute_headers(stream_schema, description_headers):
     description_to_xml_attribute = {}
@@ -291,7 +294,7 @@ def with_retries_on_exception(sleepy_time, max_attempts):
 
 @with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
 def attempt_download_report(report_downloader, report):
-    result = report_downloader.DownloadReportAsString(
+    result = report_downloader.DownloadReportAsStream(
         report, skip_report_header=True, skip_column_header=False,
         skip_report_summary=True,
         # Do not get data with 0 impressions, because some reports don't support that
@@ -315,12 +318,12 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
     with metrics.http_request_timer(stream_name):
         result = attempt_download_report(report_downloader, report)
 
-    headers, values = parse_csv_string(result)
+    headers, csv_reader = parse_csv_stream(result)
     with metrics.record_counter(stream_name) as counter:
         time_extracted = utils.now()
 
-        for _, val in enumerate(values):
-            obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), val))
+        for row in csv_reader:
+            obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), row))
             obj['_sdc_customer_id'] = customer_id
             obj['_sdc_report_datetime'] = REPORT_RUN_DATETIME
             with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
