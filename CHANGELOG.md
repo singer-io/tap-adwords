@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.0
+  * Adds the "Shopping Performance Report" to the list of available reports [#25](https://github.com/singer-io/tap-adwords/pull/25)
+
 ## 1.3.3
   * Allows the downloading of Reports to happen as a stream to improve memory consumption [#28](https://github.com/singer-io/tap-adwords/pull/28)
 
