@@ -100,7 +100,7 @@ VERIFIED_REPORTS = frozenset([
     #'SHARED_SET_CRITERIA_REPORT',                      -- does NOT allow for querying by date range
     #'SHARED_SET_REPORT',                               -- does NOT allow for querying by date range
     #'SHARED_SET_REPORT',
-    #'SHOPPING_PERFORMANCE_REPORT',
+    'SHOPPING_PERFORMANCE_REPORT',
     #'TOP_CONTENT_PERFORMANCE_REPORT',
     #'URL_PERFORMANCE_REPORT',
     #'USER_AD_DISTANCE_REPORT',
