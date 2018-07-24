@@ -16,9 +16,9 @@ from googleads import adwords
 from googleads import oauth2
 
 import requests
-import singer.metrics as metrics
-import singer.bookmarks as bookmarks
 import singer
+from singer import metrics
+from singer import bookmarks
 from singer import utils
 from singer import metadata
 from singer import (transform,
@@ -58,7 +58,7 @@ GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
 REPORT_RUN_DATETIME = utils.strftime(utils.now())
 
 VERIFIED_REPORTS = frozenset([
-    # 'ACCOUNT_PERFORMANCE_REPORT',
+    'ACCOUNT_PERFORMANCE_REPORT',
     'ADGROUP_PERFORMANCE_REPORT',
     # 'AD_CUSTOMIZERS_FEED_ITEM_REPORT',
     'AD_PERFORMANCE_REPORT',
@@ -67,7 +67,7 @@ VERIFIED_REPORTS = frozenset([
     # 'AUTOMATIC_PLACEMENTS_PERFORMANCE_REPORT',
     # 'BID_GOAL_PERFORMANCE_REPORT',
     #'BUDGET_PERFORMANCE_REPORT',                       -- does NOT allow for querying by date range
-    # 'CALL_METRICS_CALL_DETAILS_REPORT',
+    'CALL_METRICS_CALL_DETAILS_REPORT',
     #'CAMPAIGN_AD_SCHEDULE_TARGET_REPORT',
     #'CAMPAIGN_CRITERIA_REPORT',
     #'CAMPAIGN_GROUP_PERFORMANCE_REPORT',
@@ -81,8 +81,8 @@ VERIFIED_REPORTS = frozenset([
     #'CREATIVE_CONVERSION_REPORT',
     'CRITERIA_PERFORMANCE_REPORT',
     #'DESTINATION_URL_REPORT',
-    #'DISPLAY_KEYWORD_PERFORMANCE_REPORT',
-    #'DISPLAY_TOPICS_PERFORMANCE_REPORT',
+    'DISPLAY_KEYWORD_PERFORMANCE_REPORT',
+    'DISPLAY_TOPICS_PERFORMANCE_REPORT',
     'FINAL_URL_REPORT',
     'GENDER_PERFORMANCE_REPORT',
     'GEO_PERFORMANCE_REPORT',
@@ -104,7 +104,7 @@ VERIFIED_REPORTS = frozenset([
     #'TOP_CONTENT_PERFORMANCE_REPORT',
     #'URL_PERFORMANCE_REPORT',
     #'USER_AD_DISTANCE_REPORT',
-    #'VIDEO_PERFORMANCE_REPORT',
+    'VIDEO_PERFORMANCE_REPORT',
     #'UNKNOWN'
 ])
 
@@ -725,7 +725,7 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
 
 def sync_generic_endpoint(stream_name, stream_metadata, sdk_client):
-    if stream_name == 'ads' or stream_name == 'ad_groups':
+    if stream_name in ('ads', 'ad_groups'):
         selector = {
             'fields': ['Id'],
             'paging': {
@@ -743,7 +743,7 @@ def sync_generic_endpoint(stream_name, stream_metadata, sdk_client):
                                    campaign_ids,
                                    stream_name,
                                    stream_metadata)
-    elif stream_name == 'campaigns' or stream_name == 'accounts':
+    elif stream_name in ('campaigns', 'accounts'):
         sync_generic_basic_endpoint(sdk_client,
                                     stream_name,
                                     stream_metadata)
