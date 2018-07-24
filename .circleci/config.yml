@@ -1,0 +1,19 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/python:3.4-jessie-browsers
+    steps:
+      - checkout
+      - run:
+          name: 'Setup'
+          command: |
+            virtualenv -p python3 ~/.virtualenvs/tap-adwords
+            source ~/.virtualenvs/tap-adwords/bin/activate
+            pip install .
+            pip install pylint
+      - run:
+          name: 'Pylint'
+          command: |
+            source ~/.virtualenvs/tap-adwords/bin/activate
+            pylint tap_adwords -d missing-docstring,dangerous-default-value,logging-format-interpolation,broad-except,fixme,line-too-long,invalid-name,ungrouped-imports,too-many-locals,wrong-import-order,raising-format-tuple,no-else-return

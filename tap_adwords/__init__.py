@@ -16,9 +16,9 @@ from googleads import adwords
 from googleads import oauth2
 
 import requests
-import singer.metrics as metrics
-import singer.bookmarks as bookmarks
 import singer
+from singer import metrics
+from singer import bookmarks
 from singer import utils
 from singer import metadata
 from singer import (transform,
@@ -725,7 +725,7 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
 
 def sync_generic_endpoint(stream_name, stream_metadata, sdk_client):
-    if stream_name == 'ads' or stream_name == 'ad_groups':
+    if stream_name in ('ads', 'ad_groups'):
         selector = {
             'fields': ['Id'],
             'paging': {
@@ -743,7 +743,7 @@ def sync_generic_endpoint(stream_name, stream_metadata, sdk_client):
                                    campaign_ids,
                                    stream_name,
                                    stream_metadata)
-    elif stream_name == 'campaigns' or stream_name == 'accounts':
+    elif stream_name in ('campaigns', 'accounts'):
         sync_generic_basic_endpoint(sdk_client,
                                     stream_name,
                                     stream_metadata)
