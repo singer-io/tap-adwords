@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.5.0
+  * Adds the Call Metrics Call Details, Display Keyword Performance, Display Topics Performance, Account Performance, and Video Performance Reports [#34](https://github.com/singer-io/tap-adwords/pull/34)
+
 ## 1.4.0
   * Adds the "Shopping Performance Report" to the list of available reports [#25](https://github.com/singer-io/tap-adwords/pull/25)
 
