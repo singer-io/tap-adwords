@@ -138,7 +138,7 @@ def get_attribution_window_bookmark(customer_id, stream_name):
     mid_bk_value = bookmarks.get_bookmark(STATE,
                                           state_key_name(customer_id, stream_name),
                                           'last_attribution_window_date')
-    return utils.strptime_with_tz(mid_bk_value)
+    return utils.strptime_with_tz(mid_bk_value) if mid_bk_value else None
 
 def get_start_for_stream(customer_id, stream_name):
     bk_value = bookmarks.get_bookmark(STATE,
