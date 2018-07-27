@@ -228,12 +228,12 @@ def sync_report(stream_name, stream_metadata, sdk_client):
         sync_report_for_day(stream_name, stream_schema, sdk_client, start_date, field_list)
         start_date = start_date+relativedelta(days=1)
         bookmarks.write_bookmark(STATE,
-                                 state_key_name(sdk_client.client_customer_id, stream_name),
+                                 state_key_name(customer_id, stream_name),
                                  'last_attribution_window_date',
                                  start_date.strftime(utils.DATETIME_FMT))
         singer.write_state(STATE)
     bookmarks.clear_bookmark(STATE,
-                             state_key_name(sdk_client.client_customer_id, stream_name),
+                             state_key_name(customer_id, stream_name),
                              'last_attribution_window_date')
     singer.write_state(STATE)
     LOGGER.info("Done syncing the %s report for customer_id %s", stream_name, customer_id)
