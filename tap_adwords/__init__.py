@@ -134,6 +134,12 @@ def load_schema(entity):
 def load_metadata(entity):
     return utils.load_json(get_abs_path("metadata/{}.json".format(entity)))
 
+def get_attribution_window_bookmark(customer_id, stream_name):
+    mid_bk_value = bookmarks.get_bookmark(STATE,
+                                          state_key_name(customer_id, stream_name),
+                                          'last_attribution_window_date')
+    return utils.strptime_with_tz(mid_bk_value) if mid_bk_value else None
+
 def get_start_for_stream(customer_id, stream_name):
     bk_value = bookmarks.get_bookmark(STATE,
                                       state_key_name(customer_id, stream_name),
@@ -206,7 +212,11 @@ def sync_report(stream_name, stream_metadata, sdk_client):
         field_list.append(stream_metadata[('properties', field)]['adwords.fieldName'])
 
     check_selected_fields(stream_name, field_list, sdk_client)
-    start_date = apply_conversion_window(get_start_for_stream(customer_id, stream_name))
+    # If an attribution window sync is interrupted, start where it left off
+    start_date = get_attribution_window_bookmark(customer_id, stream_name)
+    if start_date is None:
+        start_date = apply_conversion_window(get_start_for_stream(customer_id, stream_name))
+
     if stream_name in REPORTS_WITH_90_DAY_MAX:
         cutoff = utils.now()+relativedelta(days=-90)
         if start_date < cutoff:
@@ -217,6 +227,15 @@ def sync_report(stream_name, stream_metadata, sdk_client):
     while start_date <= get_end_date():
         sync_report_for_day(stream_name, stream_schema, sdk_client, start_date, field_list)
         start_date = start_date+relativedelta(days=1)
+        bookmarks.write_bookmark(STATE,
+                                 state_key_name(customer_id, stream_name),
+                                 'last_attribution_window_date',
+                                 start_date.strftime(utils.DATETIME_FMT))
+        singer.write_state(STATE)
+    bookmarks.clear_bookmark(STATE,
+                             state_key_name(customer_id, stream_name),
+                             'last_attribution_window_date')
+    singer.write_state(STATE)
     LOGGER.info("Done syncing the %s report for customer_id %s", stream_name, customer_id)
 
 def parse_csv_stream(csv_stream):
