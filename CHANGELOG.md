@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.0
+  * Adds support for bookmarking within an attribution window to prevent a hung sync [#36](https://github.com/singer-io/tap-adwords/pull/36)
+
 ## 1.5.0
   * Adds the Call Metrics Call Details, Display Keyword Performance, Display Topics Performance, Account Performance, and Video Performance Reports [#34](https://github.com/singer-io/tap-adwords/pull/34)
 
