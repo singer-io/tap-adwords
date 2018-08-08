@@ -368,6 +368,21 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
         LOGGER.info("Done syncing %s records for the %s report for customer_id %s on %s",
                     counter.value, stream_name, customer_id, start)
 
+def suds_to_dict(obj):
+    if not hasattr(obj, '__keylist__'):
+        return obj
+    data = {}
+    fields = obj.__keylist__
+    for field in fields:
+        val = getattr(obj, field)
+        if isinstance(val, list):
+            data[field] = []
+            for item in val:
+                data[field].append(suds_to_dict(item))
+        else:
+            data[field] = suds_to_dict(val)
+    return data
+
 CAMPAIGNS_BLACK_LISTED_FIELDS = set(['networkSetting', 'conversionOptimizerEligibility',
                                      'frequencyCap'])
 AD_GROUPS_BLACK_LISTED_FIELDS = set(['biddingStrategyConfiguration'])
@@ -659,7 +674,8 @@ def sync_campaign_ids_endpoint(sdk_client,
                 with metrics.record_counter(stream) as counter:
                     time_extracted = utils.now()
 
-                    for obj in page['entries']:
+                    for entry in page['entries']:
+                        obj = suds_to_dict(entry)
                         obj['_sdc_customer_id'] = sdk_client.client_customer_id
                         with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
                             bumble_bee.pre_hook = transform_pre_hook
@@ -715,7 +731,8 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
             with metrics.record_counter(stream) as counter:
                 time_extracted = utils.now()
 
-                for obj in page['entries']:
+                for entry in page['entries']:
+                    obj = suds_to_dict(entry)
                     obj['_sdc_customer_id'] = sdk_client.client_customer_id
                     with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
                         bumble_bee.pre_hook = transform_pre_hook
