@@ -17,6 +17,7 @@ from googleads import oauth2
 
 import requests
 import singer
+import zeep
 from singer import metrics
 from singer import bookmarks
 from singer import utils
@@ -274,6 +275,8 @@ def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
             data = data[:-2]
 
         data = data.replace('%', '')
+    elif data and typ == 'object':
+        data = zeep.helpers.serialize_object(data, target_cls=dict)
 
     return data
 
