@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.0
+  * Upgrades the `googleads` SDK and uses API version v201806 [#37](https://github.com/singer-io/tap-adwords/pull/37)
+  * Migrated from suds to zeep to match version of googleads SDK being used [#38](https://github.com/singer-io/tap-adwords/pull/38)
+
 ## 1.6.0
   * Adds support for bookmarking within an attribution window to prevent a hung sync [#36](https://github.com/singer-io/tap-adwords/pull/36)
 
