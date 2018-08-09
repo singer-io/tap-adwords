@@ -13,7 +13,7 @@ setup(name='tap-adwords',
           'singer-python==5.1.5',
           'requests==2.13.0',
           'googleads==13.0.0',
-          'suds-jurko==0.6'
+          'zeep==3.1.0', # googleads dependency, pinned to 3.1.0 (tested version)
       ],
       entry_points='''
           [console_scripts]
