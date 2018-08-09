@@ -17,6 +17,7 @@ from googleads import oauth2
 
 import requests
 import singer
+import zeep
 from singer import metrics
 from singer import bookmarks
 from singer import utils
@@ -31,7 +32,7 @@ LOGGER = singer.get_logger()
 SESSION = requests.Session()
 
 PAGE_SIZE = 1000
-VERSION = 'v201802'
+VERSION = 'v201806'
 
 REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
                         "boolean":  {'type': ["null", "boolean"]},
@@ -274,6 +275,8 @@ def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
             data = data[:-2]
 
         data = data.replace('%', '')
+    elif data and typ == 'object':
+        data = zeep.helpers.serialize_object(data, target_cls=dict)
 
     return data
 
