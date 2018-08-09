@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.7.0
+## 1.7.2
   * Upgrades the `googleads` SDK and uses API version v201806 [#37](https://github.com/singer-io/tap-adwords/pull/37)
   * Migrated from suds to zeep to match version of googleads SDK being used [#38](https://github.com/singer-io/tap-adwords/pull/38)
 
