@@ -263,7 +263,7 @@ def get_xml_attribute_headers(stream_schema, description_headers):
 def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
     # A value of two dashes (--) indicates there is no value
     # See https://developers.google.com/adwords/api/docs/guides/reporting#two_dashes
-    if isinstance(data, str) and data == '--':
+    if isinstance(data, str) and data.strip() == '--':
         data = None
 
     elif data and typ == "number":
