@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.2
+  * In the pre-transform hook, only coerce values to null if their trimmed value is exactly '--' [#41](https://github.com/singer-io/tap-adwords/pull/41)
+
+## 1.8.0
+  * Adds the Placeholder Report to the list of available reports [#40](https://github.com/singer-io/tap-adwords/pull/40)
+
 ## 1.7.2
   * Upgrades the `googleads` SDK and uses API version v201806 [#37](https://github.com/singer-io/tap-adwords/pull/37)
   * Migrated from suds to zeep to match version of googleads SDK being used [#38](https://github.com/singer-io/tap-adwords/pull/38)

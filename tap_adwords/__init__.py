@@ -94,7 +94,7 @@ VERIFIED_REPORTS = frozenset([
     #'PAID_ORGANIC_QUERY_REPORT',
     #'PARENTAL_STATUS_PERFORMANCE_REPORT',
     'PLACEHOLDER_FEED_ITEM_REPORT',
-    #'PLACEHOLDER_REPORT',
+    'PLACEHOLDER_REPORT',
     'PLACEMENT_PERFORMANCE_REPORT',
     #'PRODUCT_PARTITION_REPORT',
     'SEARCH_QUERY_PERFORMANCE_REPORT',
@@ -261,7 +261,9 @@ def get_xml_attribute_headers(stream_schema, description_headers):
     return xml_attribute_headers
 
 def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
-    if isinstance(data, str) and '--' in data:
+    # A value of two dashes (--) indicates there is no value
+    # See https://developers.google.com/adwords/api/docs/guides/reporting#two_dashes
+    if isinstance(data, str) and data.strip() == '--':
         data = None
 
     elif data and typ == "number":
@@ -348,6 +350,7 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
             obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), row))
             obj['_sdc_customer_id'] = customer_id
             obj['_sdc_report_datetime'] = REPORT_RUN_DATETIME
+
             with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
                 bumble_bee.pre_hook = transform_pre_hook
                 obj = bumble_bee.transform(obj, stream_schema)
