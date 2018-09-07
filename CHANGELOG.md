@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.9.0
+  * Adds the Placeholder Feed Item Report to the list of available reports [#42](https://github.com/singer-io/tap-adwords/pull/42)
+
 ## 1.8.2
   * In the pre-transform hook, only coerce values to null if their trimmed value is exactly '--' [#41](https://github.com/singer-io/tap-adwords/pull/41)
 
