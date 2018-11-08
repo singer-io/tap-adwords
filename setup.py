@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name='tap-adwords',
-      version="1.9.0",
+      version="1.9.1",
       description='Singer.io tap for extracting data from the Adwords api',
       author='Stitch',
       url='http://singer.io',
@@ -11,7 +11,7 @@ setup(name='tap-adwords',
       py_modules=['tap_adwords'],
       install_requires=[
           'singer-python==5.1.5',
-          'requests==2.13.0',
+          'requests==2.20.0',
           'googleads==13.0.0',
           'zeep==3.1.0', # googleads dependency, pinned to 3.1.0 (tested version)
       ],
