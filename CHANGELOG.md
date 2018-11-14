@@ -1,7 +1,7 @@
 # Changelog
 
 ## 1.9.1
-  * Update version of `requests` to `0.20.0` in response to CVE 2018-18074
+  * Update version of `requests` to `2.20.0` in response to CVE 2018-18074
 
 ## 1.9.0
   * Adds the Placeholder Feed Item Report to the list of available reports [#42](https://github.com/singer-io/tap-adwords/pull/42)
