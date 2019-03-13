@@ -32,7 +32,9 @@ LOGGER = singer.get_logger()
 SESSION = requests.Session()
 
 PAGE_SIZE = 1000
-VERSION = 'v201806'
+
+# FIXME: 'v201809'
+VERSION = 'v201809'
 
 REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
                         "boolean":  {'type': ["null", "boolean"]},
@@ -81,7 +83,7 @@ VERIFIED_REPORTS = frozenset([
     'CLICK_PERFORMANCE_REPORT',
     #'CREATIVE_CONVERSION_REPORT',
     'CRITERIA_PERFORMANCE_REPORT',
-    #'DESTINATION_URL_REPORT',
+    #'FINAL_URL_REPORT',
     'DISPLAY_KEYWORD_PERFORMANCE_REPORT',
     'DISPLAY_TOPICS_PERFORMANCE_REPORT',
     'FINAL_URL_REPORT',
