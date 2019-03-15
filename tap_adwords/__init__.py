@@ -311,8 +311,8 @@ def with_retries_on_exception(sleepy_time, max_attempts):
             if ex:
                 LOGGER.critical("Error encountered when contacting Google AdWords API after {} retries".format(MAX_ATTEMPTS))
                 raise ex #pylint: disable=raising-bad-type
-            else:
-                return result
+
+            return result
         return wrapped_function
     return wrap
 
@@ -588,10 +588,10 @@ def get_ad_group_ids_safe_selectors(sdk_client, campaign_ids_selector, stream):
                                                                                     agids)):
         if not success:
             raise Exception("Can't fit any partition using ad groups predicate")
-        else:
-            page = get_page(sdk_client, selector, stream, 0)
-            total_num_entries_dict["selector_" + str(hash(str(selector)))] = page['totalNumEntries']
-            yield selector
+
+        page = get_page(sdk_client, selector, stream, 0)
+        total_num_entries_dict["selector_" + str(hash(str(selector)))] = page['totalNumEntries']
+        yield selector
 
 # returns starting point selectors (0th page) that need to then be
 # paged through but all are safe to page through (<
