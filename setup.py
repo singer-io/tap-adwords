@@ -15,6 +15,11 @@ setup(name='tap-adwords',
           'googleads==17.0.0',
           'zeep==3.1.0', # googleads dependency, pinned to 3.1.0 (tested version)
       ],
+      extras_require={
+          'dev': [
+              'ipdb==0.11'
+          ]
+      },
       entry_points='''
           [console_scripts]
           tap-adwords=tap_adwords:main
