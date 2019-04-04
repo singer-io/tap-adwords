@@ -10,8 +10,7 @@ jobs:
           command: |
             virtualenv -p python3 ~/.virtualenvs/tap-adwords
             source ~/.virtualenvs/tap-adwords/bin/activate
-            pip install .
-            pip install pylint
+            pip install .[dev]
       - run:
           name: 'Pylint'
           command: |
