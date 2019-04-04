@@ -877,8 +877,13 @@ def check_selected_fields(stream, field_list, sdk_client):
                 field.xmlAttributeName, ",".join(field_errors)))
 
     if errors:
-        raise Exception("Fields selection violates Google's exclusion rules:\n\t{}" \
-                        .format("\n\t".join(errors)))
+        raise Exception((
+            "Fields selection violates Google's exclusion rules. "
+            "You may be able to correct this by going to the Stitch "
+            "UI and hovering over the question mark of an excluded "
+            "field if you're using this tap within Stitch."
+            "\n\t{}"
+        ).format("\n\t".join(errors)))
 
 def do_discover_reports(sdk_client):
     url = 'https://adwords.google.com/api/adwords/reportdownload/{}/reportDefinition.xsd'.format(VERSION)
