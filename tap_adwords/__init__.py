@@ -878,20 +878,21 @@ def check_selected_fields(stream, field_list, sdk_client):
 
     if errors:
         if sdk_client.user_agent == "Stitch Tap (+support@stitchdata.com)":
-            message_format = (
-                "Field selections violate Google's exclusion rules. "
+            advice_message = (
                 "You should correct this by going to the Stitch "
                 "UI and hovering over the question mark of any excluded "
                 "field and following the instructions found in the "
-                "tooltip.\n\t{}"
+                "tooltip."
             )
         else:
-            message_format = (
-                "Field selections violate Google's exclusion rules. "
+            advice_message = (
                 "You should correct it in the catalog being passed "
-                "to the tap.\n\t{}"
+                "to the tap."
             )
-        raise Exception(message_format.format("\n\t".join(errors)))
+        raise Exception(
+            "Field selections violate Google's exclusion rules. {}\n\t{}".format(
+                advice_message,
+                "\n\t".join(errors)))
 
 def do_discover_reports(sdk_client):
     url = 'https://adwords.google.com/api/adwords/reportdownload/{}/reportDefinition.xsd'.format(VERSION)
