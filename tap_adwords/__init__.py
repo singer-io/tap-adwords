@@ -750,25 +750,36 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
                     obj['_sdc_customer_id'] = sdk_client.client_customer_id
                     with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
                         bumble_bee.pre_hook = transform_pre_hook
+                        # At this point the `record` is wrong because of
+                        # the comment below.
                         record = bumble_bee.transform(obj, discovered_schema)
-                        # retransform startDate and endDate if this is
+                        # retransform `startDate` and `endDate` if this is
                         # campaigns as the transformer doesn't currently
                         # have support for dates
                         #
-                        # This will cause a column split once fixed correctly
+                        # This will cause a column split in the warehouse
+                        # if we ever change to a `date` type so be wary.
                         if stream == 'campaigns':
-                            # [API Docs][1] State that these fields are
+                            # [API Docs][1] state that these fields are
                             # formatted as dates using `YYYYMMDD` and that
                             # when they're added they default to the
-                            # timezone of the parent account. We grab the
-                            # parent account's timezone from the
-                            # ManagedCustomerService and cast these to
+                            # timezone of the parent account. The
+                            # description is not super clear so we're
+                            # making some assumptions at this point: 1.
+                            # The timezone of the parent account is the
+                            # timezone that the date string is in and 2.
+                            # That there's no way to to create a campaign
+                            # is a different time zone (if there is we
+                            # don't appear to have a way to retrieve it).
+                            #
+                            # We grab the parent account's timezone from
+                            # the ManagedCustomerService and cast these to
                             # that timezone and then format them as if
                             # they were datetimes which is not quite
                             # accurate but is the best we can currently
                             # do.
                             #
-                            # [1]: https://developers.google.com/adwords/api/docs/reference/v201809/CampaignService.Campaign
+                            # [1]: https://developers.google.com/adwords/api/docs/reference/v201809/CampaignService.Campaign#startdate
                             parent_account_tz_str = get_and_cache_parent_account_tz_str(
                                 sdk_client)
                             if 'startDate' in record:

@@ -15,4 +15,4 @@ jobs:
           name: 'Pylint'
           command: |
             source ~/.virtualenvs/tap-adwords/bin/activate
-            pylint tap_adwords -d missing-docstring,dangerous-default-value,logging-format-interpolation,broad-except,fixme,line-too-long,invalid-name,ungrouped-imports,too-many-locals,wrong-import-order,raising-format-tuple,no-else-return
+            pylint tap_adwords -d missing-docstring,dangerous-default-value,logging-format-interpolation,broad-except,fixme,line-too-long,invalid-name,ungrouped-imports,too-many-locals,wrong-import-order,raising-format-tuple,no-else-return,too-many-lines
