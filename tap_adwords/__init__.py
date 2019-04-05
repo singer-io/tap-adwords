@@ -397,11 +397,13 @@ GOOGLE_MAX_START_INDEX = 100000
 GOOGLE_MAX_PREDICATE_SIZE = 10000
 
 @with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
-def attempt_get_from_service(service_name, service_caller, selector):
+def attempt_get_from_service(service_caller, selector):
     try:
         return service_caller.get(selector)
     except:
-        LOGGER.info("An exception was thrown in %s with selector: %s", service_name, selector)
+        LOGGER.info("An exception was thrown in %s with selector: %s",
+                    list(service_caller.zeep_client.wsdl.services.keys())[0],
+                    selector)
         raise
 
 def set_index(selector, index):
@@ -413,7 +415,6 @@ def get_service_caller(sdk_client, stream):
     return sdk_client.GetService(service_name, version=VERSION)
 
 def get_page(sdk_client, selector, stream, start_index):
-    service_name = GENERIC_ENDPOINT_MAPPINGS[stream]['service_name']
     service_caller = get_service_caller(sdk_client, stream)
     selector = set_index(selector, start_index)
     with metrics.http_request_timer(stream):
@@ -423,7 +424,7 @@ def get_page(sdk_client, selector, stream, start_index):
                     sdk_client.client_customer_id,
                     selector['paging']['startIndex'],
                     hash(str(selector)))
-        page = attempt_get_from_service(service_name, service_caller, selector)
+        page = attempt_get_from_service(service_caller, selector)
         return page
 
 #pylint: disable=too-many-return-statements
