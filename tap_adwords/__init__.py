@@ -9,6 +9,7 @@ import csv
 import time
 import json
 import copy
+import pytz
 import xml.etree.ElementTree as ET
 
 import googleads
@@ -396,20 +397,25 @@ GOOGLE_MAX_START_INDEX = 100000
 GOOGLE_MAX_PREDICATE_SIZE = 10000
 
 @with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
-def attempt_get_from_service(service_name, service_caller, selector):
+def attempt_get_from_service(service_caller, selector):
     try:
         return service_caller.get(selector)
     except:
-        LOGGER.info("An exception was thrown in %s with selector: %s", service_name, selector)
+        LOGGER.info("An exception was thrown in %s with selector: %s",
+                    list(service_caller.zeep_client.wsdl.services.keys())[0],
+                    selector)
         raise
 
 def set_index(selector, index):
     selector['paging']['startIndex'] = str(index)
     return selector
 
-def get_page(sdk_client, selector, stream, start_index):
+def get_service_caller(sdk_client, stream):
     service_name = GENERIC_ENDPOINT_MAPPINGS[stream]['service_name']
-    service_caller = sdk_client.GetService(service_name, version=VERSION)
+    return sdk_client.GetService(service_name, version=VERSION)
+
+def get_page(sdk_client, selector, stream, start_index):
+    service_caller = get_service_caller(sdk_client, stream)
     selector = set_index(selector, start_index)
     with metrics.http_request_timer(stream):
         LOGGER.info("Request %s %s for customer %s with startIndex %s using selector %s",
@@ -418,7 +424,7 @@ def get_page(sdk_client, selector, stream, start_index):
                     sdk_client.client_customer_id,
                     selector['paging']['startIndex'],
                     hash(str(selector)))
-        page = attempt_get_from_service(service_name, service_caller, selector)
+        page = attempt_get_from_service(service_caller, selector)
         return page
 
 #pylint: disable=too-many-return-statements
@@ -682,6 +688,29 @@ def sync_campaign_ids_endpoint(sdk_client,
 
     LOGGER.info("Done syncing %s for customer_id %s", stream, sdk_client.client_customer_id)
 
+# Will leak memory. Could provide a flush cache operation if that becomes
+# an issue.
+parent_account_tz_cache = {}
+
+def get_and_cache_parent_account_tz_str(sdk_client):
+    """Retrieve the timezone for the customer id associated with the
+    SDK_CLIENT
+    """
+    if sdk_client.client_customer_id not in parent_account_tz_cache:
+        selector = {'fields': ['CustomerId', 'DateTimeZone'],
+                    'predicates': [
+                        {'field': 'CustomerId',
+                         'operator': 'IN',
+                         'values': [sdk_client.client_customer_id]}
+                    ],
+                    # Should only ever have one result
+                    'paging': {'startIndex': '0', 'numberResults': '1'}}
+        results = get_page(sdk_client, selector, 'accounts', 0)
+        assert results['totalNumEntries'] == 1
+        parent_account_tz_cache[sdk_client.client_customer_id] = results['entries'][0]['dateTimeZone']
+
+    return parent_account_tz_cache[sdk_client.client_customer_id]
+
 def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
     discovered_schema = load_schema(stream)
     field_list = get_field_list(discovered_schema, stream, stream_metadata)
@@ -722,7 +751,52 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
                     obj['_sdc_customer_id'] = sdk_client.client_customer_id
                     with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
                         bumble_bee.pre_hook = transform_pre_hook
+                        # At this point the `record` is wrong because of
+                        # the comment below.
                         record = bumble_bee.transform(obj, discovered_schema)
+                        # retransform `startDate` and `endDate` if this is
+                        # campaigns as the transformer doesn't currently
+                        # have support for dates
+                        #
+                        # This will cause a column split in the warehouse
+                        # if we ever change to a `date` type so be wary.
+                        if stream == 'campaigns':
+                            # [API Docs][1] state that these fields are
+                            # formatted as dates using `YYYYMMDD` and that
+                            # when they're added they default to the
+                            # timezone of the parent account. The
+                            # description is not super clear so we're
+                            # making some assumptions at this point: 1.
+                            # The timezone of the parent account is the
+                            # timezone that the date string is in and 2.
+                            # That there's no way to to create a campaign
+                            # is a different time zone (if there is we
+                            # don't appear to have a way to retrieve it).
+                            #
+                            # We grab the parent account's timezone from
+                            # the ManagedCustomerService and cast these to
+                            # that timezone and then format them as if
+                            # they were datetimes which is not quite
+                            # accurate but is the best we can currently
+                            # do.
+                            #
+                            # [1]: https://developers.google.com/adwords/api/docs/reference/v201809/CampaignService.Campaign#startdate
+                            parent_account_tz_str = get_and_cache_parent_account_tz_str(
+                                sdk_client)
+                            if 'startDate' in record:
+                                naive_date = datetime.datetime.strptime(
+                                    obj['startDate'],
+                                    '%Y%m%d')
+                                utc_date = pytz.timezone(parent_account_tz_str).localize(
+                                    naive_date).astimezone(tz=pytz.UTC)
+                                record['startDate'] = utils.strftime(utc_date)
+                            if 'endDate' in record:
+                                naive_date = datetime.datetime.strptime(
+                                    obj['endDate'],
+                                    '%Y%m%d')
+                                utc_date = pytz.timezone(parent_account_tz_str).localize(
+                                    naive_date).astimezone(tz=pytz.UTC)
+                                record['endDate'] = utils.strftime(utc_date)
 
                         singer.write_record(stream, record, time_extracted=time_extracted)
                         counter.increment()
@@ -759,9 +833,9 @@ def sync_generic_endpoint(stream_name, stream_metadata, sdk_client):
         raise Exception("Undefined generic endpoint %s", stream_name)
 
 def sync_stream(stream_name, stream_metadata, sdk_client):
-    # This bifurcation is real. Generic Endpoints have entirely
-    # different performant characteristics and constraints than the
-    # Report Endpoints and thus should be kept separate.
+    # This bifurcation is real. Generic Endpoints have entirely different
+    # performance characteristics and constraints than the Report
+    # Endpoints and thus should be kept separate.
     if stream_name in GENERIC_ENDPOINT_MAPPINGS:
         sync_generic_endpoint(stream_name, stream_metadata, sdk_client)
     else:
