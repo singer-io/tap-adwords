@@ -783,14 +783,14 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
                             # [1]: https://developers.google.com/adwords/api/docs/reference/v201809/CampaignService.Campaign#startdate
                             parent_account_tz_str = get_and_cache_parent_account_tz_str(
                                 sdk_client)
-                            if 'startDate' in record:
+                            if record.get('startDate'):
                                 naive_date = datetime.datetime.strptime(
                                     obj['startDate'],
                                     '%Y%m%d')
                                 utc_date = pytz.timezone(parent_account_tz_str).localize(
                                     naive_date).astimezone(tz=pytz.UTC)
                                 record['startDate'] = utils.strftime(utc_date)
-                            if 'endDate' in record:
+                            if record.get('endDate'):
                                 naive_date = datetime.datetime.strptime(
                                     obj['endDate'],
                                     '%Y%m%d')
