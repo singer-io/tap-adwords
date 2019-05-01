@@ -706,8 +706,16 @@ def get_and_cache_parent_account_tz_str(sdk_client):
                     # Should only ever have one result
                     'paging': {'startIndex': '0', 'numberResults': '1'}}
         results = get_page(sdk_client, selector, 'accounts', 0)
-        assert results['totalNumEntries'] == 1
-        parent_account_tz_cache[sdk_client.client_customer_id] = results['entries'][0]['dateTimeZone']
+        assert results['totalNumEntries'] <= 1
+        if results['totalNumEntries'] == 1:
+            parent_account_tz_cache[sdk_client.client_customer_id] = results['entries'][0]['dateTimeZone']
+        elif results['totalNumEntries'] == 0:
+            LOGGER.warning(("Google returned an empty managed customer "
+                            "result set for %s which should not happen "
+                            "based on our understanding of the API. "
+                            "Falling back (possibly erroneously) to UTC."),
+                           sdk_client.client_customer_id)
+            parent_account_tz_cache[sdk_client.client_customer_id] = 'UTC'
 
     return parent_account_tz_cache[sdk_client.client_customer_id]
 
