@@ -347,17 +347,17 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
     with metrics.record_counter(stream_name) as counter:
         time_extracted = utils.now()
 
-        for row in csv_reader:
-            obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), row))
-            obj['_sdc_customer_id'] = customer_id
-            obj['_sdc_report_datetime'] = REPORT_RUN_DATETIME
+        with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
+            for row in csv_reader:
+                obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), row))
+                obj['_sdc_customer_id'] = customer_id
+                obj['_sdc_report_datetime'] = REPORT_RUN_DATETIME
 
-            with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
                 bumble_bee.pre_hook = transform_pre_hook
                 obj = bumble_bee.transform(obj, stream_schema)
 
-            singer.write_record(stream_name, obj, time_extracted=time_extracted)
-            counter.increment()
+                singer.write_record(stream_name, obj, time_extracted=time_extracted)
+                counter.increment()
 
         if start > get_start_for_stream(sdk_client.client_customer_id, stream_name):
             LOGGER.info('updating bookmark: %s > %s', start, get_start_for_stream(sdk_client.client_customer_id, stream_name))
@@ -668,9 +668,9 @@ def sync_campaign_ids_endpoint(sdk_client,
                 with metrics.record_counter(stream) as counter:
                     time_extracted = utils.now()
 
-                    for obj in page['entries']:
-                        obj['_sdc_customer_id'] = sdk_client.client_customer_id
-                        with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
+                    with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
+                        for obj in page['entries']:
+                            obj['_sdc_customer_id'] = sdk_client.client_customer_id
                             bumble_bee.pre_hook = transform_pre_hook
                             record = bumble_bee.transform(obj, discovered_schema)
 
@@ -755,9 +755,10 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
             with metrics.record_counter(stream) as counter:
                 time_extracted = utils.now()
 
-                for obj in page['entries']:
-                    obj['_sdc_customer_id'] = sdk_client.client_customer_id
-                    with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
+                with Transformer(singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING) as bumble_bee:
+                    for obj in page['entries']:
+                        obj['_sdc_customer_id'] = sdk_client.client_customer_id
+
                         bumble_bee.pre_hook = transform_pre_hook
                         # At this point the `record` is wrong because of
                         # the comment below.
