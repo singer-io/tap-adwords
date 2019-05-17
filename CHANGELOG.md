@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.11.3
+  * Reduce log verbosity of `Removed paths...` and `Filtered paths...` from singer-python [#47](https://github.com/singer-io/tap-adwords/pull/47)
+
 ## 1.9.1
   * Update version of `requests` to `2.20.0` in response to CVE 2018-18074
 
