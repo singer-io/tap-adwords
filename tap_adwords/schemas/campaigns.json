@@ -248,6 +248,31 @@
         "null",
         "string"
       ]
+    },
+    "urlCustomParameters": {
+      "type": ["null", "object"],
+      "properties": {
+        "parameters": {
+          "type": ["array", "null"],
+          "items": {
+            "type": ["object", "null"],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "value": {
+                "type": ["string", "null"]
+              },
+              "isRemove": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "doReplace": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

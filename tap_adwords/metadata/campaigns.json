@@ -37,4 +37,6 @@
  {"metadata": {"inclusion": "available"}, "breadcrumb": ["properties", "campaignTrialType"]},
  {"metadata": {"inclusion": "available"}, "breadcrumb": ["properties", "status"]},
  {"metadata": {"inclusion": "available"}, "breadcrumb": ["properties", "networkSetting"]},
- {"metadata": {"inclusion": "available"}, "breadcrumb": ["properties", "networkSetting", "properties", "targetGoogleSearch"]}]
+ {"metadata": {"inclusion": "available"}, "breadcrumb": ["properties", "networkSetting", "properties", "targetGoogleSearch"]},
+ {"metadata": {"inclusion": "available"}, "breadcrumb": ["properties", "urlCustomParameters"]}
+]

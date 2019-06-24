@@ -31,4 +31,5 @@
  {"metadata": {"inclusion": "available"}, "breadcrumb": ["properties", "campaignName"]},
  {"metadata": {"inclusion": "available"}, "breadcrumb": ["properties", "status"]},
  {"metadata": {"inclusion": "available"}, "breadcrumb": ["properties", "baseAdGroupId"]},
- {"metadata": {"inclusion": "available"}, "breadcrumb": ["properties", "adGroupType"]}]
+ {"metadata": {"inclusion": "available"}, "breadcrumb": ["properties", "adGroupType"]},
+ {"metadata": {"inclusion": "available"}, "breadcrumb": ["properties", "urlCustomParameters"]}]
