@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.11.4
+  * Add `urlCustomParameters` to campaigns and ad_groups schemas [#48](https://github.com/singer-io/tap-adwords/pull/48)
+
 ## 1.11.3
   * Reduce log verbosity of `Removed paths...` and `Filtered paths...` from singer-python [#47](https://github.com/singer-io/tap-adwords/pull/47)
 
