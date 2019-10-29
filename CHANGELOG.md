@@ -1,4 +1,9 @@
 # Changelog
+## 1.11.6
+  * Fix pylint error (unnecessary list comprehension) [#54](https://github.com/singer-io/tap-adwords/pull/54)
+
+## 1.11.5
+  * Update the Circle file to run integration tests [#52](https://github.com/singer-io/tap-adwords/pull/52)
 
 ## 1.11.4
   * Add `urlCustomParameters` to campaigns and ad_groups schemas [#48](https://github.com/singer-io/tap-adwords/pull/48)
