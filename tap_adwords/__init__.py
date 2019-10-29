@@ -246,7 +246,7 @@ def parse_csv_stream(csv_stream):
 
     # Read a single line into a String, and parse the headers as a CSV
     headers = csv.reader(io.StringIO(tw.readline()))
-    header_array = [f for f in headers][0]
+    header_array = list(headers)[0]
 
     # Create another CSV reader for the rest of the data
     csv_reader = csv.reader(tw)
