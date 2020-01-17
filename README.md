@@ -81,8 +81,9 @@ You can provide JSON file that contains a date for the streams to force the appl
 
 tap-adwords uses some custom metadata keys:
 
-* `behavior` - The “fieldBehavior” value from the Google Adwords API. Either "attribute", "metric", or "segment".
-* `fieldExclusions` - Indicates which other fields may not be selected when this field is selected. If you invoke the tap with selections that violate fieldExclusion rules, the tap will fail.
+* `behavior` - The “fieldBehavior” value from the Google Adwords API. Either "attribute", "metric", or "segment". (discoverable)
+* `fieldExclusions` - Indicates which other fields may not be selected when this field is selected. If you invoke the tap with selections that violate fieldExclusion rules, the tap will fail. (discoverable)
+* `tap-adwords.report-key-properties` - Is user set and indicates which fields to output as "key_properties" in the stream's SCHEMA message. (nondiscoverable)
 
 
 ---
