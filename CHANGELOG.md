@@ -1,4 +1,8 @@
 # Changelog
+## 1.12.0
+  * Add `tap-adwords.report-key-properties` as a metadata key a user can
+  set in the `properties.json` file that sets the primary key for non
+  generic endpoint streams.
 ## 1.11.6
   * Fix pylint error (unnecessary list comprehension) [#54](https://github.com/singer-io/tap-adwords/pull/54)
 
