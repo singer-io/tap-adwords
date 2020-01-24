@@ -2,17 +2,49 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/python:3.4-jessie-browsers
+      - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:tap-tester
     steps:
       - checkout
       - run:
-          name: 'Setup'
+          name: 'Setup virtualenv'
           command: |
-            virtualenv -p python3 ~/.virtualenvs/tap-adwords
-            source ~/.virtualenvs/tap-adwords/bin/activate
+            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/sandbox dev_env.sh
+            source dev_env.sh
+            export LC_ALL=C
+            python3 -m venv /usr/local/share/virtualenvs/tap-adwords
+            source /usr/local/share/virtualenvs/tap-adwords/bin/activate
+            pip install -U 'pip<19.2' setuptools
             pip install .[dev]
       - run:
           name: 'Pylint'
           command: |
-            source ~/.virtualenvs/tap-adwords/bin/activate
+            source /usr/local/share/virtualenvs/tap-adwords/bin/activate
             pylint tap_adwords -d missing-docstring,dangerous-default-value,logging-format-interpolation,broad-except,fixme,line-too-long,invalid-name,ungrouped-imports,too-many-locals,wrong-import-order,raising-format-tuple,no-else-return,too-many-lines
+      - add_ssh_keys
+      - run:
+          name: 'Integration Tests'
+          command: |
+            source dev_env.sh
+            source /usr/local/share/virtualenvs/tap-tester/bin/activate
+            run-a-test --tap=tap-adwords \
+                       --target=target-stitch \
+                       --orchestrator=stitch-orchestrator \
+                       --email=harrison+sandboxtest@stitchdata.com \
+                       --password=$SANDBOX_PASSWORD \
+                       --client-id=50 \
+                       tap_tester_adwords_bookmarks_1
+workflows:
+  version: 2
+  commit:
+    jobs:
+      - build
+  build_daily:
+    triggers:
+      - schedule:
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - build

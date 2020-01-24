@@ -204,7 +204,7 @@ def sync_report(stream_name, stream_metadata, sdk_client):
 
     xml_attribute_list = get_fields_to_sync(stream_schema, stream_metadata)
 
-    primary_keys = []
+    primary_keys = metadata.get(stream_metadata, (), 'tap-adwords.report-key-properties') or []
     LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
 
     write_schema(stream_name, stream_schema, primary_keys, bookmark_properties=['day'])
@@ -246,7 +246,7 @@ def parse_csv_stream(csv_stream):
 
     # Read a single line into a String, and parse the headers as a CSV
     headers = csv.reader(io.StringIO(tw.readline()))
-    header_array = [f for f in headers][0]
+    header_array = list(headers)[0]
 
     # Create another CSV reader for the rest of the data
     csv_reader = csv.reader(tw)
