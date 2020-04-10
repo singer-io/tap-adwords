@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 # pylint: disable=wrong-import-order
+import argparse
 import datetime
 import os
 import sys
@@ -49,28 +50,23 @@ REPORT_TYPE_MAPPINGS = {"Boolean":  {"type": ["null", "boolean"]},
                                      "format": "date-time"},
                         "Money":    {"type": ["null", "integer", "string"]}}
 
-GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
-                                           'service_name': 'CampaignService'},
-                             "ad_groups": {'primary_keys': ["id"],
-                                           'service_name': 'AdGroupService'},
-                             "ads":       {'primary_keys': ["adGroupId"],
-                                           'service_name': 'AdGroupAdService'},
-                             "accounts":  {'primary_keys': ["customerId"],
-                                           'service_name': 'ManagedCustomerService'}}
+GENERIC_ENDPOINT_MAPPINGS = {}
 
 REPORT_RUN_DATETIME = utils.strftime(utils.now())
 
+# A lot of these are commented out because we do not need them at the moment, some are commented out in the tap source
+# because the tap does not support them.
 VERIFIED_REPORTS = frozenset([
-    'ACCOUNT_PERFORMANCE_REPORT',
-    'ADGROUP_PERFORMANCE_REPORT',
+    # 'ACCOUNT_PERFORMANCE_REPORT',
+    # 'ADGROUP_PERFORMANCE_REPORT',
     # 'AD_CUSTOMIZERS_FEED_ITEM_REPORT',
-    'AD_PERFORMANCE_REPORT',
-    'AGE_RANGE_PERFORMANCE_REPORT',
-    'AUDIENCE_PERFORMANCE_REPORT',
+    # 'AD_PERFORMANCE_REPORT',
+    # 'AGE_RANGE_PERFORMANCE_REPORT',
+    # 'AUDIENCE_PERFORMANCE_REPORT',
     # 'AUTOMATIC_PLACEMENTS_PERFORMANCE_REPORT',
     # 'BID_GOAL_PERFORMANCE_REPORT',
     #'BUDGET_PERFORMANCE_REPORT',                       -- does NOT allow for querying by date range
-    'CALL_METRICS_CALL_DETAILS_REPORT',
+    # 'CALL_METRICS_CALL_DETAILS_REPORT',
     #'CAMPAIGN_AD_SCHEDULE_TARGET_REPORT',
     #'CAMPAIGN_CRITERIA_REPORT',
     #'CAMPAIGN_GROUP_PERFORMANCE_REPORT',
@@ -78,35 +74,35 @@ VERIFIED_REPORTS = frozenset([
     #'CAMPAIGN_NEGATIVE_KEYWORDS_PERFORMANCE_REPORT',   -- does NOT allow for querying by date range
     #'CAMPAIGN_NEGATIVE_LOCATIONS_REPORT',              -- does NOT allow for querying by date range
     #'CAMPAIGN_NEGATIVE_PLACEMENTS_PERFORMANCE_REPORT', -- does NOT allow for querying by date range
-    'CAMPAIGN_PERFORMANCE_REPORT',
+    # 'CAMPAIGN_PERFORMANCE_REPORT',
     #'CAMPAIGN_SHARED_SET_REPORT',                      -- does NOT allow for querying by date range
-    'CLICK_PERFORMANCE_REPORT',
+    # 'CLICK_PERFORMANCE_REPORT',
     #'CREATIVE_CONVERSION_REPORT',
-    'CRITERIA_PERFORMANCE_REPORT',
-    'DISPLAY_KEYWORD_PERFORMANCE_REPORT',
-    'DISPLAY_TOPICS_PERFORMANCE_REPORT',
-    'FINAL_URL_REPORT',
-    'GENDER_PERFORMANCE_REPORT',
+    # 'CRITERIA_PERFORMANCE_REPORT',
+    # 'DISPLAY_KEYWORD_PERFORMANCE_REPORT',
+    # 'DISPLAY_TOPICS_PERFORMANCE_REPORT',
+    # 'FINAL_URL_REPORT',
+    # 'GENDER_PERFORMANCE_REPORT',
     'GEO_PERFORMANCE_REPORT',
     #'KEYWORDLESS_CATEGORY_REPORT',
-    'KEYWORDLESS_QUERY_REPORT',
+    # 'KEYWORDLESS_QUERY_REPORT',
     'KEYWORDS_PERFORMANCE_REPORT',
     #'LABEL_REPORT',                                    -- does NOT allow for querying by date range,
     #'PAID_ORGANIC_QUERY_REPORT',
     #'PARENTAL_STATUS_PERFORMANCE_REPORT',
-    'PLACEHOLDER_FEED_ITEM_REPORT',
-    'PLACEHOLDER_REPORT',
-    'PLACEMENT_PERFORMANCE_REPORT',
-    #'PRODUCT_PARTITION_REPORT',
-    'SEARCH_QUERY_PERFORMANCE_REPORT',
+    # 'PLACEHOLDER_FEED_ITEM_REPORT',
+    # 'PLACEHOLDER_REPORT',
+    # 'PLACEMENT_PERFORMANCE_REPORT',
+    'PRODUCT_PARTITION_REPORT',
+    # 'SEARCH_QUERY_PERFORMANCE_REPORT',
     #'SHARED_SET_CRITERIA_REPORT',                      -- does NOT allow for querying by date range
     #'SHARED_SET_REPORT',                               -- does NOT allow for querying by date range
     #'SHARED_SET_REPORT',
-    'SHOPPING_PERFORMANCE_REPORT',
+    # 'SHOPPING_PERFORMANCE_REPORT',
     #'TOP_CONTENT_PERFORMANCE_REPORT',
     #'URL_PERFORMANCE_REPORT',
     #'USER_AD_DISTANCE_REPORT',
-    'VIDEO_PERFORMANCE_REPORT',
+    # 'VIDEO_PERFORMANCE_REPORT',
     #'UNKNOWN'
 ])
 
@@ -232,7 +228,7 @@ def sync_report(stream_name, stream_metadata, sdk_client):
         bookmarks.write_bookmark(STATE,
                                  state_key_name(customer_id, stream_name),
                                  'last_attribution_window_date',
-                                 start_date.strftime(utils.DATETIME_FMT))
+                                 utils.strftime(start_date))
         singer.write_state(STATE)
     bookmarks.clear_bookmark(STATE,
                              state_key_name(customer_id, stream_name),
@@ -364,7 +360,7 @@ def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_lis
             bookmarks.write_bookmark(STATE,
                                      state_key_name(sdk_client.client_customer_id, stream_name),
                                      'date',
-                                     start.strftime(utils.DATETIME_FMT))
+                                     utils.strftime(start))
             singer.write_state(STATE)
         else:
             LOGGER.info('not updating bookmark: %s <= %s', start, get_start_for_stream(sdk_client.client_customer_id, stream_name))
@@ -1007,8 +1003,10 @@ def do_discover_generic_endpoints():
                         'tap_stream_id': stream_name,
                         'schema': schema,
                         'metadata': md})
+
     LOGGER.info("Generic discovery complete")
     return streams
+
 
 def do_discover(customer_ids):
     sdk_client = create_sdk_client(customer_ids[0])

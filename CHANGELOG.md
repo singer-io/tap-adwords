@@ -1,4 +1,6 @@
 # Changelog
+## 1.12.1
+  * Fixed time formatting bug.
 ## 1.12.0
   * Add `tap-adwords.report-key-properties` as a metadata key a user can
   set in the `properties.json` file that sets the primary key for non
