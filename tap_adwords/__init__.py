@@ -850,16 +850,17 @@ def sync_stream(stream_name, stream_metadata, sdk_client):
     else:
         sync_report(stream_name, stream_metadata, sdk_client)
 
-def do_sync(properties, sdk_client):
-    for catalog in properties['streams']:
-        stream_name = catalog.get('stream')
-        stream_metadata = metadata.to_map(catalog.get('metadata'))
+def do_sync(catalog, sdk_client, state):
+    # Get selected_streams from catalog, based on state last_stream
+    #   last_stream = Previous currently synced stream, if the load was interrupted
+    last_stream = singer.get_currently_syncing(state)
+    LOGGER.info('last/currently syncing stream: {}'.format(last_stream))
+    for stream in catalog.get_selected_streams(state):
+        stream_name = stream.stream
+        stream_metadata = metadata.to_map(stream.metadata)
 
-        if stream_metadata.get((), {}).get('selected'):
-            LOGGER.info('Syncing stream %s ...', stream_name)
-            sync_stream(stream_name, stream_metadata, sdk_client)
-        else:
-            LOGGER.info('Skipping stream %s.', stream_name)
+        LOGGER.info('Syncing stream %s ...', stream_name)
+        sync_stream(stream_name, stream_metadata, sdk_client)
 
 def get_report_definition_service(report_type, sdk_client):
     report_definition_service = sdk_client.GetService(
@@ -1030,11 +1031,11 @@ def create_sdk_client(customer_id):
                                  client_customer_id=customer_id)
     return sdk_client
 
-def do_sync_all_customers(customer_ids, properties):
+def do_sync_all_customers(customer_ids, catalog, state):
     for customer_id in customer_ids:
         LOGGER.info('Syncing customer ID %s ...', customer_id)
         sdk_client = create_sdk_client(customer_id)
-        do_sync(properties, sdk_client)
+        do_sync(catalog, sdk_client, state=state)
         LOGGER.info('Done syncing customer ID %s.', customer_id)
 
 def main_impl():
@@ -1044,11 +1045,15 @@ def main_impl():
     STATE.update(args.state)
     customer_ids = CONFIG['customer_ids'].split(",")
 
+    state = {}
+    if args.state:
+        state = args.state
+
     if args.discover:
         do_discover(customer_ids)
         LOGGER.info("Discovery complete")
-    elif args.properties:
-        do_sync_all_customers(customer_ids, args.properties)
+    elif args.catalog:
+        do_sync_all_customers(customer_ids, args.catalog, state=state)
         LOGGER.info("Sync Completed")
     else:
         LOGGER.info("No properties were selected")
