@@ -23,6 +23,11 @@ jobs:
           command: |
             source /usr/local/share/virtualenvs/tap-adwords/bin/activate
             pylint tap_adwords -d missing-docstring,dangerous-default-value,logging-format-interpolation,broad-except,fixme,line-too-long,invalid-name,ungrouped-imports,too-many-locals,wrong-import-order,raising-format-tuple,no-else-return,too-many-lines
+      - run:
+          name: 'Unit Tests'
+          command: |
+            source /usr/local/share/virtualenvs/tap-adwords/bin/activate
+            nosetests tests/unittests
       - add_ssh_keys
       - run:
           name: 'Integration Tests'
