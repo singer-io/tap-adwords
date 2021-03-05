@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET
 import googleads
 from googleads import adwords
 from googleads import oauth2
+from googleads.errors import GoogleAdsServerFault, AdWordsReportBadRequestError
 
 import requests
 import singer
@@ -285,7 +286,7 @@ def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
 
 RETRY_SLEEP_TIME = 60
 MAX_ATTEMPTS = 3
-def with_retries_on_exception(sleepy_time, max_attempts):
+def with_retries_on_exception(sleepy_time, max_attempts, dont_retry={}):
     def wrap(some_function):
         def wrapped_function(*args):
             attempts = 1
@@ -296,6 +297,8 @@ def with_retries_on_exception(sleepy_time, max_attempts):
                 result = some_function(*args)
             except Exception as our_ex:
                 ex = our_ex
+                if type(ex) in dont_retry.keys() and dont_retry[type(ex)] in str(ex):
+                    raise ex
 
             while ex and attempts < max_attempts:
                 LOGGER.warning("attempt {} of {} failed".format(attempts, some_function))
@@ -319,12 +322,21 @@ def with_retries_on_exception(sleepy_time, max_attempts):
 
 @with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
 def attempt_download_report(report_downloader, report):
-    result = report_downloader.DownloadReportAsStream(
-        report, skip_report_header=True, skip_column_header=False,
-        skip_report_summary=True,
-        # Do not get data with 0 impressions, because some reports don't support that
-        include_zero_impressions=False)
-    return result
+    try:
+        result = report_downloader.DownloadReportAsStream(
+            report, skip_report_header=True, skip_column_header=False,
+            skip_report_summary=True,
+            # Do not get data with 0 impressions, because some reports don't support that
+            include_zero_impressions=False)
+        return result
+    except Exception as e:
+        if type(e) == AdWordsReportBadRequestError and "RateExceededError.RATE_EXCEEDED" in str(e):
+            raise AdWordsReportBadRequestError("Rate Exceeded Error. Too many requests were made to the API in a short period of time.",
+                                               "Basic Access Daily Reporting Quota",
+                                               "None", "", "", "")
+        else:
+            raise
+
 
 def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list): # pylint: disable=too-many-locals
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
@@ -396,15 +408,18 @@ GOOGLE_MAX_START_INDEX = 100000
 # operators. http://googleadsdeveloper.blogspot.com/2014/01/ensuring-reliable-performance-with-new.html
 GOOGLE_MAX_PREDICATE_SIZE = 10000
 
-@with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
+@with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS, dont_retry={GoogleAdsServerFault: "Customer Not Active AuthorizationError. This usu"})
 def attempt_get_from_service(service_caller, selector):
     try:
         return service_caller.get(selector)
-    except:
+    except Exception as e:
         LOGGER.info("An exception was thrown in %s with selector: %s",
                     list(service_caller.zeep_client.wsdl.services.keys())[0],
                     selector)
-        raise
+        if type(e) == GoogleAdsServerFault and "CUSTOMER_NOT_ACTIVE" in str(e):
+            raise GoogleAdsServerFault(document="", message="Customer Not Active AuthorizationError. This usually means that you haven't been active on your account for 15 months.")
+        else:
+            raise
 
 def set_index(selector, index):
     selector['paging']['startIndex'] = str(index)
@@ -862,10 +877,18 @@ def do_sync(properties, sdk_client):
             LOGGER.info('Skipping stream %s.', stream_name)
 
 def get_report_definition_service(report_type, sdk_client):
-    report_definition_service = sdk_client.GetService(
-        'ReportDefinitionService', version=VERSION)
-    fields = report_definition_service.getReportFields(report_type)
-    return fields
+    try:
+        report_definition_service = sdk_client.GetService(
+            'ReportDefinitionService', version=VERSION)
+        fields = report_definition_service.getReportFields(report_type)
+        return fields
+    except Exception as e:
+        if type(e) == GoogleAdsServerFault and "CUSTOMER_NOT_ACTIVE" in str(e):
+            raise Exception("Customer Not Active AuthorizationError. This usually means that you haven't been active on your account for 15 months.")
+        else:
+            raise
+
+
 
 def create_type_map(typ):
     if REPORT_TYPE_MAPPINGS.get(typ):
