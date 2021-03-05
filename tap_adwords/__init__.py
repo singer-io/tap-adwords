@@ -298,7 +298,7 @@ def with_retries_on_exception(sleepy_time, max_attempts, dont_retry={}):
             except Exception as our_ex:
                 ex = our_ex
                 if type(ex) in dont_retry.keys() and dont_retry[type(ex)] in str(ex):
-                    raise ex
+                    raise ex from our_ex
 
             while ex and attempts < max_attempts:
                 LOGGER.warning("attempt {} of {} failed".format(attempts, some_function))
@@ -330,12 +330,11 @@ def attempt_download_report(report_downloader, report):
             include_zero_impressions=False)
         return result
     except Exception as e:
-        if type(e) == AdWordsReportBadRequestError and "RateExceededError.RATE_EXCEEDED" in str(e):
+        if isinstance(e, AdWordsReportBadRequestError) and "RateExceededError.RATE_EXCEEDED" in str(e):
             raise AdWordsReportBadRequestError("Rate Exceeded Error. Too many requests were made to the API in a short period of time.",
                                                "Basic Access Daily Reporting Quota",
-                                               "None", "", "", "")
-        else:
-            raise
+                                               "None", "", "", "") from e
+        raise
 
 
 def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list): # pylint: disable=too-many-locals
@@ -416,10 +415,9 @@ def attempt_get_from_service(service_caller, selector):
         LOGGER.info("An exception was thrown in %s with selector: %s",
                     list(service_caller.zeep_client.wsdl.services.keys())[0],
                     selector)
-        if type(e) == GoogleAdsServerFault and "CUSTOMER_NOT_ACTIVE" in str(e):
-            raise GoogleAdsServerFault(document="", message="Customer Not Active AuthorizationError. This usually means that you haven't been active on your account for 15 months.")
-        else:
-            raise
+        if isinstance(e, GoogleAdsServerFault) and "CUSTOMER_NOT_ACTIVE" in str(e):
+            raise GoogleAdsServerFault(document="", message="Customer Not Active AuthorizationError. This usually means that you haven't been active on your account for 15 months.") from e
+        raise
 
 def set_index(selector, index):
     selector['paging']['startIndex'] = str(index)
@@ -883,10 +881,9 @@ def get_report_definition_service(report_type, sdk_client):
         fields = report_definition_service.getReportFields(report_type)
         return fields
     except Exception as e:
-        if type(e) == GoogleAdsServerFault and "CUSTOMER_NOT_ACTIVE" in str(e):
-            raise Exception("Customer Not Active AuthorizationError. This usually means that you haven't been active on your account for 15 months.")
-        else:
-            raise
+        if isinstance(e, GoogleAdsServerFault) and "CUSTOMER_NOT_ACTIVE" in str(e):
+            raise Exception("Customer Not Active AuthorizationError. This usually means that you haven't been active on your account for 15 months.") from e
+        raise
 
 
 
