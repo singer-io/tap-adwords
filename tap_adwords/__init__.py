@@ -337,7 +337,7 @@ def attempt_download_report(report_downloader, report):
         return result
     except Exception as e:
         if isinstance(e, AdWordsReportBadRequestError) and "RateExceededError.RATE_EXCEEDED" in str(e):
-            raise RateExceededError("Rate Exceeded Error. Too many requests were made to the API in a short period of time.")
+            raise RateExceededError("Rate Exceeded Error. Too many requests were made to the API in a short period of time.") from e
         raise
 
 
@@ -420,7 +420,7 @@ def attempt_get_from_service(service_caller, selector):
                     list(service_caller.zeep_client.wsdl.services.keys())[0],
                     selector)
         if isinstance(e, GoogleAdsServerFault) and "CUSTOMER_NOT_ACTIVE" in str(e):
-            raise CustomerNotActiveError("Customer Not Active AuthorizationError. This usually means that you haven't been active on your account for 15 months.")
+            raise CustomerNotActiveError("Customer Not Active AuthorizationError. This usually means that you haven't been active on your account for 15 months.") from e
         raise
 
 def set_index(selector, index):
@@ -886,7 +886,7 @@ def get_report_definition_service(report_type, sdk_client):
         return fields
     except Exception as e:
         if isinstance(e, GoogleAdsServerFault) and "CUSTOMER_NOT_ACTIVE" in str(e):
-            raise CustomerNotActiveError("Customer Not Active AuthorizationError. This usually means that you haven't been active on your account for 15 months.")
+            raise CustomerNotActiveError("Customer Not Active AuthorizationError. This usually means that you haven't been active on your account for 15 months.") from e
         raise
 
 
