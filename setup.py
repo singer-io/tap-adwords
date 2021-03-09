@@ -19,7 +19,8 @@ setup(name='tap-adwords',
       extras_require={
           'dev': [
               'ipdb==0.11',
-              'pylint'
+              'pylint',
+              'nose'
           ]
       },
       entry_points='''
