@@ -292,7 +292,7 @@ def transform_pre_hook(data, typ, schema): # pylint: disable=unused-argument
 
 RETRY_SLEEP_TIME = 60
 MAX_ATTEMPTS = 3
-def with_retries_on_exception(sleepy_time, max_attempts, dont_retry={}):
+def with_retries_on_exception(sleepy_time, max_attempts, dont_retry=[]):
     def wrap(some_function):
         def wrapped_function(*args):
             attempts = 1
@@ -303,7 +303,7 @@ def with_retries_on_exception(sleepy_time, max_attempts, dont_retry={}):
                 result = some_function(*args)
             except Exception as our_ex:
                 ex = our_ex
-                if type(ex) in dont_retry.keys() and dont_retry[type(ex)] in str(ex):
+                if type(ex) in dont_retry:
                     raise ex from our_ex
 
             while ex and attempts < max_attempts:
@@ -411,7 +411,7 @@ GOOGLE_MAX_START_INDEX = 100000
 # operators. http://googleadsdeveloper.blogspot.com/2014/01/ensuring-reliable-performance-with-new.html
 GOOGLE_MAX_PREDICATE_SIZE = 10000
 
-@with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS, dont_retry={CustomerNotActiveError: "Customer Not Active AuthorizationError. This usually means that you haven't been active on your account for 15 months."})
+@with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS, dont_retry=[CustomerNotActiveError])
 def attempt_get_from_service(service_caller, selector):
     try:
         return service_caller.get(selector)
