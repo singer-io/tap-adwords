@@ -59,6 +59,8 @@ The following is an example of the required configuration
  "customer_ids": ""}
 ```
 
+For report streams, the starting date from the configuration is used in combination with the `conversion_window_days`, which is set to `-30` by default.
+
 ### Create a properties file
 
 The properties file will indicate what streams and fields to replicate from the AdWords API. The Tap takes advantage of the Singer best practices for [schema discovery and property selection](https://github.com/singer-io/getting-started/blob/master/BEST_PRACTICES.md#schema-discovery-and-property-selection).
@@ -68,10 +70,22 @@ The properties file will indicate what streams and fields to replicate from the 
 You can provide JSON file that contains a date for the streams to force the application to only fetch data newer than those dates. If you omit the file it will fetch all data for the selected streams.
 
 ```json
-{"campaigns_12345":"2017-01-01T00:00:00Z",
- "CLICK_PERFORMANCE_REPORT_12345":"2017-01-01T00:00:00Z",
- "CRITERIA_PERFORMANCE_REPORT_12345":"2017-01-01T00:00:00Z"}
+{
+  "bookmarks": {
+    "campaigns_12345": {
+      "last_attribution_window_date": "2017-01-01T00:00:00Z"
+    },
+    "CLICK_PERFORMANCE_REPORT_12345": {
+      "last_attribution_window_date": "2017-01-01T00:00:00Z"
+    },
+    "CRITERIA_PERFORMANCE_REPORT_12345": {
+      "last_attribution_window_date": "2017-01-01T00:00:00Z"
+    }
+  }
+}
 ```
+
+To set the starting date of a specific stream, the bookmark of that stream can contain a key `date` instead of `last_attribution_window_date`.
 
 ### Run the Tap
 
