@@ -11,6 +11,7 @@ import json
 import copy
 import pytz
 import xml.etree.ElementTree as ET
+from typing import Any, Dict, cast
 
 from googleads import adwords
 from googleads import oauth2
@@ -939,6 +940,7 @@ def sync_generic_basic_endpoint(sdk_client, stream, stream_metadata):
                         # At this point the `record` is wrong because of
                         # the comment below.
                         record = bumble_bee.transform(obj, discovered_schema)
+                        record = cast(Dict[str, Any], record)
                         # retransform `startDate` and `endDate` if this is
                         # campaigns as the transformer doesn't currently
                         # have support for dates
