@@ -12,7 +12,6 @@ import copy
 import pytz
 import xml.etree.ElementTree as ET
 
-import googleads
 from googleads import adwords
 from googleads import oauth2
 from googleads.errors import GoogleAdsServerFault, AdWordsReportBadRequestError
@@ -24,7 +23,7 @@ from singer import metrics
 from singer import bookmarks
 from singer import utils
 from singer import metadata
-from singer import transform, UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING, Transformer
+from singer import Transformer
 from dateutil.relativedelta import relativedelta
 import math
 
