@@ -1198,7 +1198,7 @@ def do_discover_reports(sdk_client):
     )
     xsd = request_xsd(url)
     root = ET.fromstring(xsd)
-    nodes = list(root.find(".//*[@name='ReportDefinition.ReportType']/*"))
+    nodes = [root.find(".//*[@name='ReportDefinition.ReportType']/*")]
 
     stream_names = [
         p.attrib["value"] for p in nodes if p.attrib["value"] in VERIFIED_REPORTS
