@@ -1266,11 +1266,175 @@ def create_sdk_client(customer_id):
     return sdk_client
 
 
-def do_sync_all_customers(customer_ids, properties):
+STREAM_FIELDS: Dict[str, List[str]] = {
+    "ADGROUP_PERFORMANCE_REPORT": [
+        "customerID",
+        "adGroup",
+        "adGroupID",
+        "adGroupState",
+        "campaignID",
+        "clicks",
+        "contentImprShare",
+        "conversions",
+        "cost",
+        "currency",
+        "impressions",
+        "searchImprShare",
+        "videoPlayedTo100",
+        "videoPlayedTo25",
+        "videoPlayedTo50",
+        "videoPlayedTo75",
+        "views",
+        "viewThroughConv",
+        "day",
+    ],
+    "CAMPAIGN_PERFORMANCE_REPORT": [
+        "customerID",
+        "account",
+        "advertisingChannel",
+        "advertisingSubChannel",
+        "startDate",
+        "campaign",
+        "campaignID",
+        "campaignState",
+        "clicks",
+        "contentImprShare",
+        "conversions",
+        "cost",
+        "currency",
+        "impressions",
+        "searchImprShare",
+        "videoPlayedTo100",
+        "videoPlayedTo25",
+        "videoPlayedTo50",
+        "videoPlayedTo75",
+        "views",
+        "viewThroughConv",
+        "network",
+        "networkWithSearchPartners",
+        "device",
+        "day",
+        "bidStrategyType",
+    ],
+    "CLICK_PERFORMANCE_REPORT": [
+        "customerID",
+        "adGroupID",
+        "campaignID",
+        "googleClickID",
+        "keywordID",
+        "keywordPlacement",
+        "matchType",
+        "day",
+        "countryTerritoryPhysicalLocation",
+        "cityPhysicalLocation",
+        "regionPhysicalLocation",
+        "cityLocationOfInterest",
+        "countryTerritoryLocationOfInterest",
+        "regionLocationOfInterest",
+        "device",
+        "userListID",
+        "clicks",
+    ],
+    "KEYWORDS_PERFORMANCE_REPORT": [
+        "customerID",
+        "adGroupID",
+        "campaignID",
+        "keywordID",
+        "keyword",
+        "matchType",
+        "currency",
+        "cost",
+        "impressions",
+        "conversions",
+        "clicks",
+        "day",
+        "criterionServingStatus",
+        "keywordState",
+    ],
+    "GEO_PERFORMANCE_REPORT": [
+        "customerID",
+        "campaignID",
+        "adGroupID",
+        "countryTerritory",
+        "region",
+        "city",
+        "cost",
+        "impressions",
+        "views",
+        "clicks",
+        "conversions",
+        "viewThroughConv",
+        "currency",
+        "locationType",
+        "day",
+    ],
+    "AUDIENCE_PERFORMANCE_REPORT": [
+        "customerID",
+        "campaignID",
+        "adGroupID",
+        "clicks",
+        "views",
+        "impressions",
+        "conversions",
+        "viewThroughConv",
+        "cost",
+        "currency",
+        "audience",
+        "audienceState",
+        "criterionID",
+        "userListName",
+        "day",
+    ],
+    "CRITERIA_PERFORMANCE_REPORT": [
+        "customerID",
+        "keywordID",
+        "day",
+        "criteriaType",
+        "keywordPlacementState",
+        "criteriaDisplayName",
+        "criterionServingStatus",
+    ],
+    "SEARCH_QUERY_PERFORMANCE_REPORT": [
+        "customerID",
+        "adGroupID",
+        "campaignID",
+        "clicks",
+        "conversions",
+        "cost",
+        "currency",
+        "keyword",
+        "keywordID",
+        "matchType",
+        "searchTerm",
+        "impressions",
+        "day",
+    ],
+    "KEYWORDLESS_QUERY_REPORT": [
+        "customerID",
+        "searchTerm",
+        "dynamicallyGeneratedHeadline",
+        "url",
+        "clicks",
+        "cost",
+        "impressions",
+        "day",
+        "currency",
+        "campaignID",
+        "adGroupID",
+        "conversions",
+        "landingPageTitle",
+    ],
+}
+
+
+def do_sync_all_customers(customer_ids):
     for customer_id in customer_ids:
         LOGGER.info("Syncing customer ID %s ...", customer_id)
         sdk_client = create_sdk_client(customer_id)
-        do_sync(properties, sdk_client)
+
+        for stream, fields in STREAM_FIELDS.items():
+            sync_report(stream, fields, sdk_client)
+
         LOGGER.info("Done syncing customer ID %s.", customer_id)
 
 
@@ -1281,14 +1445,7 @@ def main_impl():
     STATE.update(args.state)
     customer_ids = CONFIG["customer_ids"]
 
-    if args.discover:
-        do_discover(customer_ids)
-        LOGGER.info("Discovery complete")
-    elif args.properties:
-        do_sync_all_customers(customer_ids, args.properties)
-        LOGGER.info("Sync Completed")
-    else:
-        LOGGER.info("No properties were selected")
+    do_sync_all_customers(customer_ids)
 
 
 def main():
