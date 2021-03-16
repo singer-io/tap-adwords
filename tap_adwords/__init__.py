@@ -80,11 +80,11 @@ VERIFIED_REPORTS = frozenset(
         "CRITERIA_PERFORMANCE_REPORT",
         "SEARCH_QUERY_PERFORMANCE_REPORT",
         "KEYWORDLESS_QUERY_REPORT",
-        "VIDEO_PERFORMANCE_REPORT",
-        "AD_PERFORMANCE_REPORT",
+        # "VIDEO_PERFORMANCE_REPORT",
+        # "AD_PERFORMANCE_REPORT",
         # "ACCOUNT_PERFORMANCE_REPORT",
         # "AD_CUSTOMIZERS_FEED_ITEM_REPORT",
-        "AGE_RANGE_PERFORMANCE_REPORT",
+        # "AGE_RANGE_PERFORMANCE_REPORT",
         # 'AUTOMATIC_PLACEMENTS_PERFORMANCE_REPORT',
         # 'BID_GOAL_PERFORMANCE_REPORT',
         #'BUDGET_PERFORMANCE_REPORT',                       -- does NOT allow for querying by date range
@@ -98,9 +98,9 @@ VERIFIED_REPORTS = frozenset(
         #'CAMPAIGN_NEGATIVE_PLACEMENTS_PERFORMANCE_REPORT', -- does NOT allow for querying by date range
         #'CAMPAIGN_SHARED_SET_REPORT',                      -- does NOT allow for querying by date range
         #'CREATIVE_CONVERSION_REPORT',
-        "DISPLAY_KEYWORD_PERFORMANCE_REPORT",
-        "DISPLAY_TOPICS_PERFORMANCE_REPORT",
-        "FINAL_URL_REPORT",
+        # "DISPLAY_KEYWORD_PERFORMANCE_REPORT",
+        # "DISPLAY_TOPICS_PERFORMANCE_REPORT",
+        # "FINAL_URL_REPORT",
         # "GENDER_PERFORMANCE_REPORT",
         #'KEYWORDLESS_CATEGORY_REPORT',
         #'LABEL_REPORT',                                    -- does NOT allow for querying by date range,
