@@ -11,7 +11,7 @@ import json
 import copy
 import pytz
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, cast
+from typing import Any, Dict, List, cast
 
 from googleads import adwords
 from googleads import oauth2
@@ -229,34 +229,32 @@ def add_synthetic_keys_to_stream_schema(stream_schema):
     return stream_schema
 
 
-def sync_report(stream_name, stream_metadata, sdk_client):
+def sync_report(stream: str, field_list: List[str], sdk_client: adwords.AdWordsClient):
     customer_id = sdk_client.client_customer_id
 
-    stream_schema, _ = create_schema_for_report(stream_name, sdk_client)
-    stream_schema = add_synthetic_keys_to_stream_schema(stream_schema)
+    field_options: Dict[str, Dict[str, str]] = {}
+    for field in get_report_definition_service(stream, sdk_client):
+        field_key = field["xmlAttributeName"]
+        field_entry = {
+            "fieldName": field["fieldName"],
+            "xmlAttributeName": field["xmlAttributeName"],
+            "displayFieldName": field["displayFieldName"],
+        }
+        field_options[field_key] = field_entry
 
-    xml_attribute_list = get_fields_to_sync(stream_schema, stream_metadata)
-
-    primary_keys = (
-        metadata.get(stream_metadata, (), "tap-adwords.report-key-properties") or []
-    )
-    LOGGER.info("{} primary keys are {}".format(stream_name, primary_keys))
-
-    write_schema(stream_name, stream_schema, primary_keys, bookmark_properties=["day"])
-
-    field_list = []
-    for field in xml_attribute_list:
-        field_list.append(stream_metadata[("properties", field)]["adwords.fieldName"])
-
-    check_selected_fields(stream_name, field_list, sdk_client)
+    # used to build the request
+    field_selector = [field_options[field]["fieldName"] for field in field_list]
+    # used to give the report the correct field names instead of their annoying display names
+    field_reverse = {
+        field_options[field]["displayFieldName"]: field for field in field_list
+    }
+    # check_selected_fields(stream_name, field_list, sdk_client)
     # If an attribution window sync is interrupted, start where it left off
-    start_date = get_attribution_window_bookmark(customer_id, stream_name)
+    start_date = get_attribution_window_bookmark(customer_id, stream)
     if start_date is None:
-        start_date = apply_conversion_window(
-            get_start_for_stream(customer_id, stream_name)
-        )
+        start_date = apply_conversion_window(get_start_for_stream(customer_id, stream))
 
-    if stream_name in REPORTS_WITH_90_DAY_MAX:
+    if stream in REPORTS_WITH_90_DAY_MAX:
         cutoff = utils.now() + relativedelta(days=-90)
         if start_date < cutoff:
             start_date = cutoff
@@ -265,23 +263,25 @@ def sync_report(stream_name, stream_metadata, sdk_client):
 
     while start_date <= get_end_date():
         sync_report_for_day(
-            stream_name, stream_schema, sdk_client, start_date, field_list
+            stream,
+            field_selector,
+            field_reverse,
+            sdk_client,
+            start_date,
         )
         start_date = start_date + relativedelta(days=1)
         bookmarks.write_bookmark(
             STATE,
-            state_key_name(customer_id, stream_name),
+            state_key_name(customer_id, stream),
             "last_attribution_window_date",
-            start_date.strftime(utils.DATETIME_FMT),
+            start_date.strftime(utils.DATETIME_FMT_SAFE),
         )
         singer.write_state(STATE)
     bookmarks.clear_bookmark(
-        STATE, state_key_name(customer_id, stream_name), "last_attribution_window_date"
+        STATE, state_key_name(customer_id, stream), "last_attribution_window_date"
     )
     singer.write_state(STATE)
-    LOGGER.info(
-        "Done syncing the %s report for customer_id %s", stream_name, customer_id
-    )
+    LOGGER.info("Done syncing the %s report for customer_id %s", stream, customer_id)
 
 
 def parse_csv_stream(csv_stream):
@@ -402,7 +402,11 @@ def attempt_download_report(report_downloader, report):
 
 
 def sync_report_for_day(
-    stream_name, stream_schema, sdk_client, start, field_list
+    stream_name,
+    field_list,
+    field_reverse,
+    sdk_client,
+    start,
 ):  # pylint: disable=too-many-locals
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
     customer_id = sdk_client.client_customer_id
@@ -428,19 +432,15 @@ def sync_report_for_day(
     with metrics.record_counter(stream_name) as counter:
         time_extracted = utils.now()
 
-        with Transformer(
-            singer.UNIX_MILLISECONDS_INTEGER_DATETIME_PARSING
-        ) as bumble_bee:
-            for row in csv_reader:
-                obj = dict(zip(get_xml_attribute_headers(stream_schema, headers), row))
-                obj["_sdc_customer_id"] = customer_id
-                obj["_sdc_report_datetime"] = REPORT_RUN_DATETIME
+        xmlHeaders = [field_reverse[header] for header in headers]
 
-                bumble_bee.pre_hook = transform_pre_hook
-                obj = bumble_bee.transform(obj, stream_schema)
+        for row in csv_reader:
+            obj = dict(zip(xmlHeaders, row))
+            obj["_sdc_customer_id"] = customer_id
+            obj["_sdc_report_datetime"] = REPORT_RUN_DATETIME
 
-                singer.write_record(stream_name, obj, time_extracted=time_extracted)
-                counter.increment()
+            singer.write_record(stream_name, obj, time_extracted=time_extracted)
+            counter.increment()
 
         if start > get_start_for_stream(sdk_client.client_customer_id, stream_name):
             LOGGER.info(
