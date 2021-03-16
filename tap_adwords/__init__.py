@@ -1279,7 +1279,7 @@ def main_impl():
 
     CONFIG.update(args.config)
     STATE.update(args.state)
-    customer_ids = CONFIG["customer_ids"].split(",")
+    customer_ids = CONFIG["customer_ids"]
 
     if args.discover:
         do_discover(customer_ids)
