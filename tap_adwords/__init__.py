@@ -1273,6 +1273,7 @@ STREAM_FIELDS: Dict[str, List[str]] = {
         "adGroupID",
         "adGroupState",
         "campaignID",
+        "bidStrategyType",
         "clicks",
         "contentImprShare",
         "conversions",
