@@ -1390,7 +1390,7 @@ STREAM_FIELDS: Dict[str, List[str]] = {
         "keywordID",
         "day",
         "criteriaType",
-        "keywordPlacementState",
+        "keywordPlacement",
         "criteriaDisplayName",
         "criterionServingStatus",
     ],
