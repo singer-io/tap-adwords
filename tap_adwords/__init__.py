@@ -1444,7 +1444,7 @@ def main_impl():
 
     CONFIG.update(args.config)
     STATE.update(args.state)
-    customer_ids = CONFIG["customer_ids"]
+    customer_ids = [str(cid) for cid in CONFIG["customer_ids"]]
 
     do_sync_all_customers(customer_ids)
 
