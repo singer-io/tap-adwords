@@ -33,6 +33,10 @@ class CustomerNotActiveError(Exception):
     pass
 
 
+class CustomerManagerAccountError(Exception):
+    pass
+
+
 class RateExceededError(Exception):
     pass
 
@@ -345,6 +349,12 @@ def with_retries_on_exception(sleepy_time, max_attempts, dont_retry=[]):
 
             try:
                 result = some_function(*args)
+            except AdWordsReportBadRequestError as err:
+                if (
+                    err.type
+                    == "ReportDefinitionError.CUSTOMER_SERVING_TYPE_REPORT_MISMATCH"
+                ):
+                    raise CustomerManagerAccountError
             except Exception as our_ex:
                 ex = our_ex
                 if type(ex) in dont_retry:
@@ -1433,13 +1443,19 @@ STREAM_FIELDS: Dict[str, List[str]] = {
 
 def do_sync_all_customers(customer_ids):
     for customer_id in customer_ids:
-        LOGGER.info("Syncing customer ID %s ...", customer_id)
-        sdk_client = create_sdk_client(customer_id)
+        try:
+            LOGGER.info("Syncing customer ID %s ...", customer_id)
+            sdk_client = create_sdk_client(customer_id)
 
-        for stream, fields in STREAM_FIELDS.items():
-            sync_report(stream, fields, sdk_client)
+            for stream, fields in STREAM_FIELDS.items():
+                sync_report(stream, fields, sdk_client)
 
-        LOGGER.info("Done syncing customer ID %s.", customer_id)
+            LOGGER.info("Done syncing customer ID %s.", customer_id)
+        except CustomerManagerAccountError:
+            LOGGER.warning(
+                f"cannot retrieve reports from manager account '{customer_id}' - skipping."
+            )
+            continue
 
 
 def main_impl():
