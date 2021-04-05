@@ -19,7 +19,7 @@ setup(name='tap-adwords',
       extras_require={
           'dev': [
               'ipdb==0.11',
-              'pylint==2.7.3',
+              'pylint==2.6.2',
               'nose'
           ]
       },
