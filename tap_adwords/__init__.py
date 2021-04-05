@@ -245,7 +245,6 @@ def sync_report(stream: str, field_list: List[str], sdk_client: adwords.AdWordsC
             "displayFieldName": field["displayFieldName"],
         }
         field_options[field_key] = field_entry
-
     # used to build the request
     field_selector = [field_options[field]["fieldName"] for field in field_list]
     # used to give the report the correct field names instead of their annoying display names
@@ -1284,9 +1283,9 @@ STREAM_FIELDS: Dict[str, List[str]] = {
         "adGroupState",
         "campaignID",
         "bidStrategyType",
-        'bidStrategyName',
-        'bidStrategyID',
-        'biddingStrategySource',
+        "bidStrategyName",
+        "bidStrategyID",
+        "biddingStrategySource",
         "clicks",
         "contentImprShare",
         "conversions",
@@ -1329,6 +1328,8 @@ STREAM_FIELDS: Dict[str, List[str]] = {
         "device",
         "day",
         "bidStrategyType",
+        "bidStrategyName",
+        "bidStrategyID",
     ],
     "CLICK_PERFORMANCE_REPORT": [
         "customerID",
