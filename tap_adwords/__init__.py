@@ -340,45 +340,31 @@ def with_retries_on_exception(sleepy_time, max_attempts, dont_retry=[]):
     def wrap(some_function):
         def wrapped_function(*args):
             attempts = 1
-            ex = None
-            result = None
+            while True:
+                try:
+                    ex = None
+                    return some_function(*args)
+                except AdWordsReportBadRequestError as err:
+                    if (
+                        err.type
+                        == "ReportDefinitionError.CUSTOMER_SERVING_TYPE_REPORT_MISMATCH"
+                    ):
+                        raise CustomerManagerAccountError
+                except Exception as ex:
+                    attempts = attempts + 1
+                    if attempts >= max_attempts:
+                        LOGGER.critical(
+                            "Error encountered when contacting Google AdWords API after {} retries".format(
+                                MAX_ATTEMPTS
+                            )
+                        )
+                        raise ex
 
-            try:
-                result = some_function(*args)
-            except AdWordsReportBadRequestError as err:
-                if (
-                    err.type
-                    == "ReportDefinitionError.CUSTOMER_SERVING_TYPE_REPORT_MISMATCH"
-                ):
-                    raise CustomerManagerAccountError
-            except Exception as our_ex:
-                ex = our_ex
-                if type(ex) in dont_retry:
-                    raise ex from our_ex
-
-            while ex and attempts < max_attempts:
                 LOGGER.warning(
                     "attempt {} of {} failed".format(attempts, some_function)
                 )
                 LOGGER.warning("waiting {} seconds before retrying".format(sleepy_time))
                 time.sleep(RETRY_SLEEP_TIME)
-                try:
-                    ex = None
-                    result = some_function(*args)
-                except Exception as our_ex:
-                    ex = our_ex
-
-                attempts = attempts + 1
-
-            if ex:
-                LOGGER.critical(
-                    "Error encountered when contacting Google AdWords API after {} retries".format(
-                        MAX_ATTEMPTS
-                    )
-                )
-                raise ex  # pylint: disable=raising-bad-type
-
-            return result
 
         return wrapped_function
 
