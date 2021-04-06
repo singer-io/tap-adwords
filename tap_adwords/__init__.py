@@ -280,9 +280,6 @@ def sync_report(stream: str, field_list: List[str], sdk_client: adwords.AdWordsC
             start_date.strftime(utils.DATETIME_FMT_SAFE),
         )
         singer.write_state(STATE)
-    bookmarks.clear_bookmark(
-        STATE, state_key_name(customer_id, stream), "last_attribution_window_date"
-    )
     singer.write_state(STATE)
     LOGGER.info("Done syncing the %s report for customer_id %s", stream, customer_id)
 
