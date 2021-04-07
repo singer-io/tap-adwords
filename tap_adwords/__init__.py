@@ -166,7 +166,7 @@ def get_attribution_window_bookmark(customer_id, stream_name):
 
 def get_start_for_stream(customer_id, stream_name):
     bk_value = bookmarks.get_bookmark(
-        STATE, stream_name, state_key_name(customer_id, "last_attribution_window_date")
+        STATE, stream_name, state_key_name(customer_id, "date")
     )
     bk_start_date = utils.strptime_with_tz(bk_value or CONFIG["start_date"])
     return bk_start_date
