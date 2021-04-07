@@ -159,14 +159,14 @@ def load_metadata(entity):
 
 def get_attribution_window_bookmark(customer_id, stream_name):
     mid_bk_value = bookmarks.get_bookmark(
-        STATE, state_key_name(customer_id, stream_name), "last_attribution_window_date"
+        STATE, stream_name, state_key_name(customer_id, "last_attribution_window_date")
     )
     return utils.strptime_with_tz(mid_bk_value) if mid_bk_value else None
 
 
 def get_start_for_stream(customer_id, stream_name):
     bk_value = bookmarks.get_bookmark(
-        STATE, state_key_name(customer_id, stream_name), "last_attribution_window_date"
+        STATE, stream_name, state_key_name(customer_id, "last_attribution_window_date")
     )
     bk_start_date = utils.strptime_with_tz(bk_value or CONFIG["start_date"])
     return bk_start_date
@@ -275,8 +275,8 @@ def sync_report(stream: str, field_list: List[str], sdk_client: adwords.AdWordsC
         start_date = start_date + relativedelta(days=1)
         bookmarks.write_bookmark(
             STATE,
-            state_key_name(customer_id, stream),
-            "last_attribution_window_date",
+            stream,
+            state_key_name(customer_id, "last_attribution_window_date"),
             start_date.strftime(utils.DATETIME_FMT_SAFE),
         )
         singer.write_state(STATE)
@@ -442,8 +442,8 @@ def sync_report_for_day(
             )
             bookmarks.write_bookmark(
                 STATE,
-                state_key_name(sdk_client.client_customer_id, stream_name),
-                "date",
+                stream_name,
+                state_key_name(sdk_client.client_customer_id, "date"),
                 start.strftime(utils.DATETIME_FMT),
             )
             singer.write_state(STATE)
