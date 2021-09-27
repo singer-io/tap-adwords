@@ -22,6 +22,7 @@ jobs:
           name: 'Pylint'
           command: |
             source /usr/local/share/virtualenvs/tap-adwords/bin/activate
+            source dev_env.sh
             pylint tap_adwords -d "$PYLINT_DISABLES_LIST"
       - run:
           name: 'Unit Tests'
