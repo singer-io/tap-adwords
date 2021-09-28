@@ -228,8 +228,7 @@ def sync_report(stream_name, stream_metadata, sdk_client):
 
     if stream_name in REPORTS_WITH_90_DAY_MAX:
         cutoff = utils.now()+relativedelta(days=-90)
-        if start_date < cutoff:
-            start_date = cutoff
+        start_date = max(start_date, cutoff)
 
     LOGGER.info('Selected fields: %s', field_list)
 
