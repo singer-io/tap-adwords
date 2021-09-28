@@ -29,8 +29,7 @@ jobs:
           command: |
             source /usr/local/share/virtualenvs/tap-adwords/bin/activate
             nosetests tests/unittests
-     - add_ssh_keys
-     - run:
+      - run:
           name: 'Integration Tests'
           command: |
             source dev_env.sh
