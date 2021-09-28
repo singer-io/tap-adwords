@@ -35,7 +35,7 @@ jobs:
           command: |
             source dev_env.sh
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
-            run-test --tap=tap-adwords tap_tester_adwords_bookmarks_1
+            run-test --tap=tap-adwords tests
       - slack/notify-on-failure:
           only_for_branches: master
 
