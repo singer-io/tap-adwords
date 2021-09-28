@@ -24,11 +24,6 @@ jobs:
             source /usr/local/share/virtualenvs/tap-adwords/bin/activate
             source dev_env.sh
             pylint tap_adwords -d "$PYLINT_DISABLE_LIST,logging-format-interpolation,dangerous-default-value,raising-format-tuple"
-      - run:
-          name: 'Unit Tests'
-          command: |
-            source /usr/local/share/virtualenvs/tap-adwords/bin/activate
-            nosetests tests/unittests
       - add_ssh_keys
       - run:
           name: 'Integration Tests'
@@ -36,6 +31,11 @@ jobs:
             source dev_env.sh
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
             run-test --tap=tap-adwords tests
+      - run:
+          name: 'Unit Tests'
+          command: |
+            source /usr/local/share/virtualenvs/tap-adwords/bin/activate
+            nosetests tests/unittests
       - slack/notify-on-failure:
           only_for_branches: master
 

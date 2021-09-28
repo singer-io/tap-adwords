@@ -351,7 +351,7 @@ class AdwordsBookmarks(unittest.TestCase):
                 'metadata'           : metadata.to_list(md)}
 
     def verify_day_column(self):
-        with open(runner.TARGET_OUTPUT_FILE, 'r') as file:
+        with open(runner.BACKEND.target_output_file, 'r') as file:
             for json_line in file:
                 line = json.loads(json_line)
                 stream = line.get('table_name')
@@ -363,7 +363,7 @@ class AdwordsBookmarks(unittest.TestCase):
 
     def verify_synthetic_columns(self):
         our_ccids = set(os.getenv('TAP_ADWORDS_CUSTOMER_IDS').split(","))
-        with open(runner.TARGET_OUTPUT_FILE, 'r') as file:
+        with open(runner.BACKEND.target_output_file, 'r') as file:
             for json_line in file:
                 line = json.loads(json_line)
                 stream = line.get('table_name')
