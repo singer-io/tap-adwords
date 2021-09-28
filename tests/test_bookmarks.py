@@ -351,38 +351,24 @@ class AdwordsBookmarks(unittest.TestCase):
                 'metadata'           : metadata.to_list(md)}
 
     def verify_day_column(self):
-        with open(runner.BACKEND.target_output_file, 'r') as file:
-            for json_line in file:
-                line = json.loads(json_line)
-                stream = line.get('table_name')
-                for message in line['messages']:
-                    if stream not in {'accounts', 'ads', 'campaigns', 'ad_groups'}:
-                        self.assertNotEqual(message.get('data').get('day'),
-                                            None,
-                                            msg="expected automatic day field to be included in record {}".format(message['data']))
+        synced_records = runner.get_records_from_target_output()
+        for stream in self.expected_sync_streams():
+            for message in synced_records[stream]:
+                if message['action'] == 'upsert' and stream not in {'accounts', 'ads', 'campaigns', 'ad_groups'}:
+                    self.assertIsNotNone(message['data'].get('day'))
 
     def verify_synthetic_columns(self):
         our_ccids = set(os.getenv('TAP_ADWORDS_CUSTOMER_IDS').split(","))
-        with open(runner.BACKEND.target_output_file, 'r') as file:
-            for json_line in file:
-                line = json.loads(json_line)
-                stream = line.get('table_name')
-                for message in line['messages']:
+        synced_records = runner.get_records_from_target_output()
+        for stream in self.expected_sync_streams():
+            for message in synced_records[stream]:
+                if message['action'] == 'upsert':
+                    self.assertIn(message.get('data').get('_sdc_customer_id'), our_ccids)
                     if stream in {'accounts', 'ads', 'campaigns', 'ad_groups'}:
-                        self.assertIn(message.get('data').get('_sdc_customer_id'),
-                                      our_ccids,
-                                      msg="expected client_customer_id {} in accounts record but found {}".format(our_ccids, message['data'].get('_sdc_customer_id')))
-                        self.assertEqual(message.get('data').get('_sdc_report_datetime'),
-                                         None,
-                                         msg="should not have found an _sdc_report_datetime for stream {} but found {}".format(stream, message['data'].get('_sdc_report_datetime')))
+                        self.assertIsNone(message.get('data').get('_sdc_report_datetime'))
                     else:
-                        self.assertIn(
-                            message.get('data').get('_sdc_customer_id'),
-                            our_ccids,
-                            msg="expected client_customer_id {} in accounts record but found {}".format(our_ccids, message['data'].get('_sdc_customer_id')))
-                        self.assertNotEqual(message.get('data').get('_sdc_report_datetime'),
-                                            None,
-                                            msg="missing _sdc_report_datetime {} for stream {}".format(message['data'].get('_sdc_report_datetime'), stream))
+                        self.assertIsNotNone(message.get('data').get('_sdc_report_datetime'))
+
 
     def test_run(self):
         conn_id = connections.ensure_connection(self)
@@ -464,8 +450,8 @@ class AdwordsBookmarks(unittest.TestCase):
         print("total replicated row count: {}".format(replicated_row_count))
 
 
-        #self.verify_synthetic_columns()
-        #self.verify_day_column()
+        self.verify_synthetic_columns()
+        self.verify_day_column()
 
         state = menagerie.get_state(conn_id)
         bookmarks = state.get('bookmarks')
