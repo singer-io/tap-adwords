@@ -98,18 +98,18 @@ class AdwordsBookmarks(unittest.TestCase):
             'AD_PERFORMANCE_REPORT',
             'AGE_RANGE_PERFORMANCE_REPORT',
             'CAMPAIGN_PERFORMANCE_REPORT',
-            'CLICK_PERFORMANCE_REPORT',
+            #'CLICK_PERFORMANCE_REPORT',
             'CRITERIA_PERFORMANCE_REPORT',
             'GEO_PERFORMANCE_REPORT',
             'KEYWORDS_PERFORMANCE_REPORT',
-            'SEARCH_QUERY_PERFORMANCE_REPORT',
+            #'SEARCH_QUERY_PERFORMANCE_REPORT',
             'accounts',
             'ads',
             'ad_groups',
             'campaigns',
             'GENDER_PERFORMANCE_REPORT',
             'AUDIENCE_PERFORMANCE_REPORT',
-            'KEYWORDLESS_QUERY_REPORT',
+            #'KEYWORDLESS_QUERY_REPORT',
             # 'CREATIVE_CONVERSION_REPORT'
             'FINAL_URL_REPORT'
         }
@@ -353,7 +353,7 @@ class AdwordsBookmarks(unittest.TestCase):
     def verify_day_column(self):
         synced_records = runner.get_records_from_target_output()
         for stream in self.expected_sync_streams():
-            for message in synced_records[stream]:
+            for message in synced_records[stream]['messages']:
                 if message['action'] == 'upsert' and stream not in {'accounts', 'ads', 'campaigns', 'ad_groups'}:
                     self.assertIsNotNone(message['data'].get('day'))
 
@@ -361,7 +361,7 @@ class AdwordsBookmarks(unittest.TestCase):
         our_ccids = set(os.getenv('TAP_ADWORDS_CUSTOMER_IDS').split(","))
         synced_records = runner.get_records_from_target_output()
         for stream in self.expected_sync_streams():
-            for message in synced_records[stream]:
+            for message in synced_records[stream]['messages']:
                 if message['action'] == 'upsert':
                     self.assertIn(message.get('data').get('_sdc_customer_id'), our_ccids)
                     if stream in {'accounts', 'ads', 'campaigns', 'ad_groups'}:
