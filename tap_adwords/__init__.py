@@ -339,6 +339,18 @@ def attempt_download_report(report_downloader, report):
             raise RateExceededError("Rate Exceeded Error. Too many requests were made to the API in a short period of time.") from e
         raise
 
+#### Monkey Patch!! ####
+# This exists to ensure that the socket used for a streaming report download is
+# configured with a timeout, because it is not configurable in version 17.0.0
+# of the googleads sdk, wrapping the call to `open` with our own timeout
+# parameter seemed to be the cleanest approach
+# Tap PR with more info: https://github.com/singer-io/tap-adwords/pull/85
+import urllib # pylint: disable=wrong-import-position
+original_open = urllib.request.OpenerDirector.open
+def patched_open(_self, full_url, **kwargs):
+    return original_open(_self, full_url, timeout=300, **kwargs)
+urllib.request.OpenerDirector.open = patched_open
+#### /Monkey Patch!! ####
 
 def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list): # pylint: disable=too-many-locals
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
