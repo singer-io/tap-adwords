@@ -339,6 +339,11 @@ def attempt_download_report(report_downloader, report):
             raise RateExceededError("Rate Exceeded Error. Too many requests were made to the API in a short period of time.") from e
         raise
 
+import urllib
+original_open = urllib.request.OpenerDirector.open
+def patched_open(_self, full_url, **kwargs):
+    return original_open(_self, full_url, timeout=300, **kwargs)
+urllib.request.OpenerDirector.open = patched_open
 
 def sync_report_for_day(stream_name, stream_schema, sdk_client, start, field_list): # pylint: disable=too-many-locals
     report_downloader = sdk_client.GetReportDownloader(version=VERSION)
