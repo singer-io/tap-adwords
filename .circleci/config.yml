@@ -34,13 +34,7 @@ jobs:
           command: |
             source dev_env.sh
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
-            run-a-test --tap=tap-adwords \
-                       --target=target-stitch \
-                       --orchestrator=stitch-orchestrator \
-                       --email=harrison+sandboxtest@stitchdata.com \
-                       --password=$SANDBOX_PASSWORD \
-                       --client-id=50 \
-                       tap_tester_adwords_bookmarks_1
+            run-test --tap=tap-adwords tests
       - slack/notify-on-failure:
           only_for_branches: master
 
