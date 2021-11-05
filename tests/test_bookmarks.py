@@ -1,6 +1,7 @@
 import tap_tester.connections as connections
 import tap_tester.menagerie   as menagerie
 import tap_tester.runner      as runner
+from tap_tester.backends import get_backend
 import os
 import datetime
 import unittest
@@ -11,6 +12,8 @@ import datetime
 import json
 from dateutil.relativedelta import *
 import pdb
+
+BACKEND = get_backend()
 
 class AdwordsBookmarks1(unittest.TestCase):
     def setUp(self):
@@ -351,7 +354,7 @@ class AdwordsBookmarks1(unittest.TestCase):
                 'metadata'           : metadata.to_list(md)}
 
     def verify_day_column(self):
-        with open(runner.TARGET_OUTPUT_FILE, 'r') as file:
+        with open(BACKEND.target_output_file, 'r') as file:
             for json_line in file:
                 line = json.loads(json_line)
                 stream = line.get('table_name')
@@ -363,7 +366,7 @@ class AdwordsBookmarks1(unittest.TestCase):
 
     def verify_synthetic_columns(self):
         our_ccids = set(os.getenv('TAP_ADWORDS_CUSTOMER_IDS').split(","))
-        with open(runner.TARGET_OUTPUT_FILE, 'r') as file:
+        with open(BACKEND.target_output_file, 'r') as file:
             for json_line in file:
                 line = json.loads(json_line)
                 stream = line.get('table_name')
