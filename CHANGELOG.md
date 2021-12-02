@@ -1,6 +1,12 @@
 # Changelog
+
+## 1.13.1
+  * Patch `urllib.request.OpenerDirector.open` to get timeouts on the streaming report socket [#85](https://github.com/singer-io/tap-adwords/pull/85)
+    * To attempt to fix a case where the server loses the connection but the client is still blocking on the socket for reading
+
 ## 1.13.0
   * Make custom error messages for common Adwords exceptions [#77](https://github.com/singer-io/tap-adwords/pull/77)
+
 ## 1.12.0
   * Add `tap-adwords.report-key-properties` as a metadata key a user can
   set in the `properties.json` file that sets the primary key for non
