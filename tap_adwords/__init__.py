@@ -12,6 +12,8 @@ import copy
 import pytz
 import xml.etree.ElementTree as ET
 
+import backoff
+import functools
 import googleads
 from googleads import adwords
 from googleads import oauth2
@@ -66,6 +68,7 @@ GENERIC_ENDPOINT_MAPPINGS = {"campaigns": {'primary_keys': ["id"],
                                            'service_name': 'ManagedCustomerService'}}
 
 REPORT_RUN_DATETIME = utils.strftime(utils.now())
+REQUEST_TIMEOUT = 300
 
 VERIFIED_REPORTS = frozenset([
     'ACCOUNT_PERFORMANCE_REPORT',
@@ -134,6 +137,30 @@ REQUIRED_CONFIG_KEYS = [
 CONFIG = {}
 STATE = {}
 
+def get_request_timeout():
+    # Get `request_timeout` value from config.
+    config_request_timeout = CONFIG.get('request_timeout')
+    # If config request_timeout is other than 0, "0" or "" then use request_timeout
+    if config_request_timeout and float(config_request_timeout):
+        request_timeout = float(config_request_timeout)
+    else:
+        # If value is 0, "0", "" or not passed then it set default to 300 seconds.
+        request_timeout = REQUEST_TIMEOUT
+    return request_timeout
+
+def adwords_retry_mechanism(fnc):
+    """
+        Retry Timeout, ConnectionError 5 times. Created Decorator function for reusability.
+    """
+    @backoff.on_exception(backoff.expo,
+                          (requests.exceptions.Timeout ,requests.exceptions.ConnectionError),
+                          max_tries=5,
+                          factor=2)
+    @functools.wraps(fnc)
+    def wrapper(*args, **kwargs):
+        return fnc(*args, **kwargs)
+    return wrapper
+
 def get_abs_path(path):
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), path)
 
@@ -187,10 +214,14 @@ def write_schema(stream_name, schema, primary_keys, bookmark_properties=None):
 
 # No rate limit here, since this request is only made once
 # per discovery (not sync) job
+@backoff.on_exception(backoff.expo,
+                        (requests.exceptions.Timeout ,requests.exceptions.ConnectionError), # Retry Timeout, ConnectionError 5 times.
+                        max_tries=5,
+                        factor=2)
 def request_xsd(url):
     req = requests.Request("GET", url=url).prepare()
     LOGGER.info("GET {}".format(req.url))
-    resp = SESSION.send(req)
+    resp = SESSION.send(req, timeout=get_request_timeout())
 
     return resp.text
 
@@ -325,7 +356,9 @@ def with_retries_on_exception(sleepy_time, max_attempts, dont_retry=[]):
         return wrapped_function
     return wrap
 
-@with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS)
+@adwords_retry_mechanism
+# Skipped Timeout, ConnectionError from with_retries_on_exception backoff function to retry these errors 5 times with factor of 2 by adwords_retry_mechanism function
+@with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS, dont_retry=[requests.exceptions.Timeout,requests.exceptions.ConnectionError])
 def attempt_download_report(report_downloader, report):
     try:
         result = report_downloader.DownloadReportAsStream(
@@ -422,7 +455,9 @@ GOOGLE_MAX_START_INDEX = 100000
 # operators. http://googleadsdeveloper.blogspot.com/2014/01/ensuring-reliable-performance-with-new.html
 GOOGLE_MAX_PREDICATE_SIZE = 10000
 
-@with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS, dont_retry=[CustomerNotActiveError])
+@adwords_retry_mechanism
+# Skipped Timeout, ConnectionError from with_retries_on_exception backoff function to retry these error 5 times with factor of 2 by adwords_retry_mechanism function
+@with_retries_on_exception(RETRY_SLEEP_TIME, MAX_ATTEMPTS, dont_retry=[CustomerNotActiveError, requests.exceptions.Timeout, requests.exceptions.ConnectionError])
 def attempt_get_from_service(service_caller, selector):
     try:
         return service_caller.get(selector)
@@ -438,6 +473,7 @@ def set_index(selector, index):
     selector['paging']['startIndex'] = str(index)
     return selector
 
+@adwords_retry_mechanism
 def get_service_caller(sdk_client, stream):
     service_name = GENERIC_ENDPOINT_MAPPINGS[stream]['service_name']
     return sdk_client.GetService(service_name, version=VERSION)
@@ -889,6 +925,7 @@ def do_sync(properties, sdk_client):
         else:
             LOGGER.info('Skipping stream %s.', stream_name)
 
+@adwords_retry_mechanism
 def get_report_definition_service(report_type, sdk_client):
     try:
         report_definition_service = sdk_client.GetService(
@@ -1054,6 +1091,7 @@ def do_discover(customer_ids):
     streams.extend(report_streams)
     json.dump({"streams": streams}, sys.stdout, indent=2)
 
+@adwords_retry_mechanism
 def create_sdk_client(customer_id):
     oauth2_client = oauth2.GoogleRefreshTokenClient(
         CONFIG['oauth_client_id'], \
@@ -1062,6 +1100,7 @@ def create_sdk_client(customer_id):
 
     sdk_client = adwords.AdWordsClient(CONFIG['developer_token'], \
                                  oauth2_client, user_agent=CONFIG['user_agent'], \
+                                timeout=get_request_timeout,
                                  client_customer_id=customer_id)
     return sdk_client
 
