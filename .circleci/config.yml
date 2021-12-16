@@ -18,6 +18,7 @@ jobs:
             source /usr/local/share/virtualenvs/tap-adwords/bin/activate
             pip install -U 'pip<19.2' 'setuptools<51.0.0'
             pip install .[dev]
+            pip install coverage
       - run:
           name: 'Pylint'
           command: |
@@ -28,7 +29,12 @@ jobs:
           name: 'Unit Tests'
           command: |
             source /usr/local/share/virtualenvs/tap-adwords/bin/activate
-            nosetests tests/unittests
+            nosetests --with-coverage --cover-erase --cover-package=tap_adwords --cover-html-dir=htmlcov test/unittests
+            coverage html
+      - store_test_results:
+          path: test_output/report.xml
+      - store_artifacts:
+          path: htmlcov
       - run:
           name: 'Integration Tests'
           command: |
