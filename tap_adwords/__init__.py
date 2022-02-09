@@ -1052,8 +1052,7 @@ def do_discover(customer_ids):
     streams = []
     streams.extend(generic_streams)
     # streams.extend(report_streams)
-    file = open("properties.json", "a")
-    json.dump({"streams": streams}, file, indent=2)
+    json.dump({"streams": streams}, sys.stdout, indent=2)
 
 def create_sdk_client(customer_id):
     oauth2_client = oauth2.GoogleRefreshTokenClient(
