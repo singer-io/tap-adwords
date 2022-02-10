@@ -888,7 +888,7 @@ def do_sync(properties, sdk_client):
             sync_stream(stream_name, stream_metadata, sdk_client)
         else:
             LOGGER.info('Skipping stream %s.', stream_name)
-
+            
 def get_report_definition_service(report_type, sdk_client):
     try:
         report_definition_service = sdk_client.GetService(
@@ -1052,7 +1052,9 @@ def do_discover(customer_ids):
     streams = []
     streams.extend(generic_streams)
     # streams.extend(report_streams)
-    json.dump({"streams": streams}, sys.stdout, indent=2)
+    file = open("properties.json", "a")
+    # sys.stdout
+    json.dump({"streams": streams}, file, indent=2)
 
 def create_sdk_client(customer_id):
     oauth2_client = oauth2.GoogleRefreshTokenClient(
