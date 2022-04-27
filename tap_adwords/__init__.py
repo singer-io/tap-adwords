@@ -98,6 +98,7 @@ VERIFIED_REPORTS = frozenset([
     #'KEYWORDLESS_CATEGORY_REPORT',
     'KEYWORDLESS_QUERY_REPORT',
     'KEYWORDS_PERFORMANCE_REPORT',
+    'LANDING_PAGE_REPORT',
     #'LABEL_REPORT',                                    -- does NOT allow for querying by date range,
     #'PAID_ORGANIC_QUERY_REPORT',
     #'PARENTAL_STATUS_PERFORMANCE_REPORT',
