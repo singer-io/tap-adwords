@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.13.2
+  * Dependabot update [#91](https://github.com/singer-io/tap-adwords/pull/91)
+
 ## 1.13.1
   * Patch `urllib.request.OpenerDirector.open` to get timeouts on the streaming report socket [#85](https://github.com/singer-io/tap-adwords/pull/85)
     * To attempt to fix a case where the server loses the connection but the client is still blocking on the socket for reading
